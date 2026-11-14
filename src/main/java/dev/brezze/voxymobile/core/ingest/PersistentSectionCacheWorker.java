@@ -15,6 +15,7 @@ public final class PersistentSectionCacheWorker implements AutoCloseable {
     private final ConcurrentLinkedQueue<VoxelSection> loaded = new ConcurrentLinkedQueue<>();
     private final ThreadPoolExecutor io;
     private volatile boolean closed;
+    private volatile boolean loadComplete;
 
     public PersistentSectionCacheWorker(Path root, String worldKey, String dimensionKey) {
         cache = new PersistentSectionCache(root, worldKey, dimensionKey);
@@ -34,6 +35,8 @@ public final class PersistentSectionCacheWorker implements AutoCloseable {
                 loaded.addAll(temporary.snapshot());
             } catch (IOException error) {
                 System.err.println("[VoxyMobile] cache load failed: " + error.getMessage());
+            } finally {
+                loadComplete = true;
             }
         });
     }
@@ -56,6 +59,7 @@ public final class PersistentSectionCacheWorker implements AutoCloseable {
 
     public VoxelSection pollLoaded() { return loaded.poll(); }
     public int pendingLoaded() { return loaded.size(); }
+    public boolean isLoadComplete() { return loadComplete; }
 
     private void execute(Runnable task) {
         if (closed) return;

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "voxymobile",
-  "version": "0.1.56-stage66",
+  "version": "0.1.57-stage67",
   "name": "Voxy Mobile Reborn",
   "description": "Mobile-oriented hierarchical LOD renderer for Minecraft 1.20.1 with optional GLES seam-bound debug overlay (Stage 52).",
   "authors": [

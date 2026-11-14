@@ -3,6 +3,7 @@ package dev.brezze.voxymobile.fabric;
 import dev.brezze.voxymobile.core.ingest.ChunkSnapshotStore;
 import dev.brezze.voxymobile.core.ingest.SectionSnapshotBuilder;
 import dev.brezze.voxymobile.core.ingest.PersistentSectionCacheWorker;
+import dev.brezze.voxymobile.core.ingest.LiveSectionRestoreGate;
 import dev.brezze.voxymobile.core.voxel.SectionPos;
 import dev.brezze.voxymobile.render.GlesLodRenderer;
 import dev.brezze.voxymobile.diagnostics.RuntimeDiagnostics;
@@ -37,6 +38,7 @@ public final class VoxyMobileClient implements ClientModInitializer {
     private static KeyBinding TOGGLE_SEAM_DEBUG;
     private static PersistentSectionCacheWorker CACHE_WORKER;
     private static ClientWorld CACHE_WORLD;
+    private static final LiveSectionRestoreGate RESTORE_GATE = new LiveSectionRestoreGate();
 
     @Override public void onInitializeClient() {
         System.out.println("[VoxyMobile] client initializer active; waiting for chunk and world-render events");
@@ -60,6 +62,7 @@ public final class VoxyMobileClient implements ClientModInitializer {
                 CACHE_WORKER = null;
                 CACHE_WORLD = client.world;
                 STORE.clear();
+                RESTORE_GATE.clear();
                 if (client.world != null) {
                     String identity;
                     if (client.getCurrentServerEntry() != null) identity = "server:" + client.getCurrentServerEntry().address;
@@ -77,7 +80,7 @@ public final class VoxyMobileClient implements ClientModInitializer {
                 for (int i = 0; i < 8; i++) {
                     dev.brezze.voxymobile.core.voxel.VoxelSection restored = CACHE_WORKER.pollLoaded();
                     if (restored == null) break;
-                    STORE.put(restored);
+                    if (RESTORE_GATE.shouldRestore(restored.position())) STORE.put(restored);
                 }
             }
             while (TOGGLE_SEAM_DEBUG.wasPressed()) {
@@ -106,6 +109,8 @@ public final class VoxyMobileClient implements ClientModInitializer {
                     RuntimeDiagnostics.sectionCaptured();
                 }
             }
+            if (CACHE_WORKER != null && CACHE_WORKER.isLoadComplete()
+                    && CACHE_WORKER.pendingLoaded() == 0 && isPendingEmpty()) RESTORE_GATE.clear();
             RuntimeDiagnostics.logIfDue(System.nanoTime());
         });
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
@@ -119,10 +124,10 @@ public final class VoxyMobileClient implements ClientModInitializer {
         int bottomSectionY = world.getBottomSectionCoord();
         int queued = 0;
         for (int i = 0; i < sections.length; i++) {
-            if (!sections[i].isEmpty()) {
-                enqueueSection(world, chunk, bottomSectionY + i);
-                queued++;
-            }
+            // Queue empty sections too: an old disk snapshot must be invalidated
+            // when the current live chunk confirms that section is now empty.
+            enqueueSection(world, chunk, bottomSectionY + i);
+            queued++;
         }
         RuntimeDiagnostics.chunkLoaded(queued);
     }
@@ -137,6 +142,10 @@ public final class VoxyMobileClient implements ClientModInitializer {
         int sectionIndex = sectionY - world.getBottomSectionCoord();
         if (sectionIndex < 0 || sectionIndex >= chunk.getSectionArray().length) return;
         enqueueSection(world, chunk, sectionY);
+    }
+
+    private static boolean isPendingEmpty() {
+        synchronized (PENDING) { return PENDING.isEmpty(); }
     }
 
     private static void enqueueSection(ClientWorld world, WorldChunk chunk, int sectionY) {

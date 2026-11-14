@@ -653,3 +653,13 @@ tasks.register('stage66PersistentCacheWorkerSmokeTest', JavaExec) {
 }
 tasks.register('stage66SmokeTest') { dependsOn tasks.named('stage66PersistentCacheWorkerSmokeTest') }
 check.dependsOn tasks.named('stage66SmokeTest')
+
+
+// Stage 67: reconcile persistent cache restores against current live chunk sections.
+tasks.register('stage67LiveCacheReconciliationSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.core.LiveSectionRestoreGateSmokeTest'
+}
+tasks.register('stage67SmokeTest') { dependsOn tasks.named('stage67LiveCacheReconciliationSmokeTest') }
+check.dependsOn tasks.named('stage67SmokeTest')
