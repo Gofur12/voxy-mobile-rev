@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'dev.brezze'
-version = '0.1.67-stage77'
+version = '0.1.68-stage78'
 
 base { archivesName = 'VoxyMobile-Reborn' }
 
@@ -740,3 +740,13 @@ tasks.register('stage77AtomicLodTransitionSmokeTest', JavaExec) {
 }
 tasks.register('stage77SmokeTest') { dependsOn tasks.named('stage77AtomicLodTransitionSmokeTest') }
 check.dependsOn tasks.named('stage77SmokeTest')
+
+ 
+// Stage 78: keep coarse fallback coverage meshes resident longer under GPU memory pressure.
+tasks.register('stage78GpuMeshEvictionPolicySmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.GpuMeshEvictionPolicySmokeTest'
+}
+tasks.register('stage78SmokeTest') { dependsOn tasks.named('stage78GpuMeshEvictionPolicySmokeTest') }
+check.dependsOn tasks.named('stage78SmokeTest')

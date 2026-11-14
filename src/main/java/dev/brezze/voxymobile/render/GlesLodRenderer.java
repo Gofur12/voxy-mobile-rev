@@ -430,32 +430,31 @@ public final class GlesLodRenderer {
 
     private double contextFreeCameraX, contextFreeCameraY, contextFreeCameraZ;
 
-    /** Evicts the farthest leaf OR parent GPU allocation until the shared byte budget is met. */
+    /** Evicts distant high-detail allocations first, retaining coarse coverage meshes longer. */
     private void evictDistantMeshes(double cameraX, double cameraY, double cameraZ, SectionPos protectedPosition) {
-        // Hysteresis avoids repeated single-mesh evictions around the budget boundary.
         gpuMemoryBudget.shouldEvict(gpuBytes);
         long targetBytes = gpuMemoryBudget.evictionTargetBytes();
         while (gpuMemoryBudget.evictionActive() && gpuBytes > targetBytes
                 && meshes.size() + parentMeshes.size() > 1) {
             SectionPos farthestLeaf = null;
             ParentGeometryKey farthestParent = null;
-            double farthestDistance = -1.0;
+            double worstScore = -1.0;
             for (SectionPos pos : meshes.keySet()) {
                 if (pos.equals(protectedPosition)) continue;
-                double dx = pos.x() * 16.0 + 8.0 - cameraX;
-                double dy = pos.y() * 16.0 + 8.0 - cameraY;
-                double dz = pos.z() * 16.0 + 8.0 - cameraZ;
-                double distance = dx * dx + dy * dy + dz * dz;
-                if (distance > farthestDistance) { farthestDistance = distance; farthestLeaf = pos; farthestParent = null; }
+                double score = GpuMeshEvictionPolicy.score(
+                        distanceToSectionAabbSquared(pos, 1, cameraX, cameraY, cameraZ), 0);
+                if (score > worstScore) {
+                    worstScore = score; farthestLeaf = pos; farthestParent = null;
+                }
             }
             for (ParentGeometryKey key : parentMeshes.keySet()) {
                 if (key.origin().equals(protectedPosition)) continue;
-                double span = (1 << key.level()) * 16.0;
-                double dx = key.origin().x() * 16.0 + span * 0.5 - cameraX;
-                double dy = key.origin().y() * 16.0 + span * 0.5 - cameraY;
-                double dz = key.origin().z() * 16.0 + span * 0.5 - cameraZ;
-                double distance = dx * dx + dy * dy + dz * dz;
-                if (distance > farthestDistance) { farthestDistance = distance; farthestParent = key; farthestLeaf = null; }
+                double score = GpuMeshEvictionPolicy.score(
+                        distanceToSectionAabbSquared(key.origin(), 1 << key.level(), cameraX, cameraY, cameraZ),
+                        key.level());
+                if (score > worstScore) {
+                    worstScore = score; farthestParent = key; farthestLeaf = null;
+                }
             }
             if (farthestLeaf != null) {
                 GpuMesh removed = meshes.remove(farthestLeaf);
@@ -467,10 +466,19 @@ public final class GlesLodRenderer {
                 parentGeometryCache.invalidate(farthestParent);
                 parentUploadQueue.remove(farthestParent);
                 parentBuildScheduler.invalidate(farthestParent);
-                // A future traversal can request this parent again after its current flag is reset.
                 store.lodTree().invalidateGeometry(farthestParent.origin(), farthestParent.level());
             } else break;
         }
+    }
+
+    private static double distanceToSectionAabbSquared(SectionPos origin, int spanSections,
+                                                        double cameraX, double cameraY, double cameraZ) {
+        double minX = origin.x() * 16.0, minY = origin.y() * 16.0, minZ = origin.z() * 16.0;
+        double span = spanSections * 16.0;
+        double dx = cameraX < minX ? minX - cameraX : cameraX > minX + span ? cameraX - minX - span : 0.0;
+        double dy = cameraY < minY ? minY - cameraY : cameraY > minY + span ? cameraY - minY - span : 0.0;
+        double dz = cameraZ < minZ ? minZ - cameraZ : cameraZ > minZ + span ? cameraZ - minZ - span : 0.0;
+        return dx * dx + dy * dy + dz * dz;
     }
 
     private GpuMesh upload(MeshBuildData data) {
