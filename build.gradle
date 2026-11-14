@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'dev.brezze'
-version = '0.1.47-stage57'
+version = '0.1.48-stage58'
 
 base { archivesName = 'VoxyMobile-Reborn' }
 
@@ -563,3 +563,13 @@ tasks.register('stage57LodSeamFailureOverlaySmokeTest', JavaExec) {
 }
 tasks.register('stage57SmokeTest') { dependsOn tasks.named('stage57LodSeamFailureOverlaySmokeTest') }
 check.dependsOn tasks.named('stage57SmokeTest')
+
+// Stage 58: revision-aware exponential backoff for failed live seam builds.
+tasks.register('stage58LodSeamRetryPolicySmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.LodSeamRetryPolicySmokeTest'
+}
+tasks.register('stage58SmokeTest') { dependsOn tasks.named('stage58LodSeamRetryPolicySmokeTest') }
+check.dependsOn tasks.named('stage58SmokeTest')
+
