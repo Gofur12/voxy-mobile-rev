@@ -131,7 +131,7 @@ public final class VoxyMobileClient implements ClientModInitializer {
                     RuntimeDiagnostics.sectionCaptured();
                 }
             }
-            if (CACHE_WORKER != null && CACHE_WORKER.isLoadComplete()
+            if (CACHE_WORKER != null && CACHE_WORKER.isLoadFinished()
                     && CACHE_WORKER.pendingLoaded() == 0 && isPendingEmpty()) RESTORE_GATE.clear();
             RuntimeDiagnostics.logIfDue(System.nanoTime());
         });
