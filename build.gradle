@@ -1,0 +1,197 @@
+plugins {
+    id 'fabric-loom' version '1.6-SNAPSHOT'
+}
+
+group = 'dev.brezze'
+version = '0.1.10-stage20'
+
+base { archivesName = 'VoxyMobile-Reborn' }
+
+repositories { mavenCentral() }
+
+dependencies {
+    minecraft 'com.mojang:minecraft:1.20.1'
+    mappings 'net.fabricmc:yarn:1.20.1+build.10:v2'
+    modImplementation 'net.fabricmc:fabric-loader:0.16.10'
+    modImplementation 'net.fabricmc.fabric-api:fabric-api:0.92.2+1.20.1'
+}
+
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(17) }
+    withSourcesJar()
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') { expand 'version': project.version }
+}
+
+
+tasks.register('coreSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.core.VoxelDownsampleSmokeTest'
+}
+
+check.dependsOn tasks.named('coreSmokeTest')
+
+tasks.register('greedyMesherSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.core.mesh.GreedyLodMesherSmokeTest'
+}
+
+tasks.register('allCoreSmokeTests') {
+    dependsOn tasks.named('coreSmokeTest'), tasks.named('greedyMesherSmokeTest')
+    doLast {
+        javaexec { classpath = sourceSets.test.runtimeClasspath; mainClass = 'dev.brezze.voxymobile.core.CoreSmokeTest' }
+        javaexec { classpath = sourceSets.test.runtimeClasspath; mainClass = 'dev.brezze.voxymobile.core.ChunkIngestionSmokeTest' }
+    }
+}
+check.dependsOn tasks.named('allCoreSmokeTests')
+
+
+tasks.register('lodSelectorSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.core.lod.LodSelectorSmokeTest'
+}
+check.dependsOn tasks.named('lodSelectorSmokeTest')
+
+
+tasks.register('meshSchedulerSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.MeshBuildSchedulerSmokeTest'
+}
+check.dependsOn tasks.named('meshSchedulerSmokeTest')
+
+
+tasks.register('frustumCullerSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.culling.FrustumCullerSmokeTest'
+}
+check.dependsOn tasks.named('frustumCullerSmokeTest')
+
+
+tasks.register('sectionOcclusionSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.culling.SectionOcclusionCullerSmokeTest'
+}
+check.dependsOn tasks.named('sectionOcclusionSmokeTest')
+
+
+tasks.register('sectionVisibilitySmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.culling.SectionVisibilityPipelineSmokeTest'
+}
+check.dependsOn tasks.named('sectionVisibilitySmokeTest')
+
+// Stage 11 dependency-free smoke test for adaptive streaming policy.
+tasks.register('stage11SmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.streaming.AdaptiveLodStreamingSmokeTest'
+}
+check.dependsOn tasks.named('stage11SmokeTest')
+
+
+// Stage 12 dependency-free hierarchy and parent-fallback tests.
+tasks.register('stage12NodeTreeSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.core.lod.LodNodeTreeSmokeTest'
+}
+tasks.register('stage12TraversalSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.core.lod.LodNodeTraversalSmokeTest'
+}
+tasks.register('stage12SmokeTest') {
+    dependsOn tasks.named('stage12NodeTreeSmokeTest'), tasks.named('stage12TraversalSmokeTest')
+}
+check.dependsOn tasks.named('stage12SmokeTest')
+
+
+// Stage 13: parent voxel aggregation and CPU greedy parent-mesh generation.
+tasks.register('stage13ParentAggregationSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.core.lod.ParentVoxelAggregationSmokeTest'
+}
+tasks.register('stage13SmokeTest') {
+    dependsOn tasks.named('stage13ParentAggregationSmokeTest')
+}
+check.dependsOn tasks.named('stage13SmokeTest')
+
+
+// Stage 14: parent geometry packing, revision-aware LRU cache and render-thread hand-off queue.
+tasks.register('stage14GeometrySmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.ParentGeometryPipelineSmokeTest'
+}
+tasks.register('stage14SmokeTest') { dependsOn tasks.named('stage14GeometrySmokeTest') }
+check.dependsOn tasks.named('stage14SmokeTest')
+
+
+// Stage 15: GLES parent-node upload and hierarchical parent/child draw selection.
+tasks.register('stage15SmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.core.lod.ParentRenderSelectionSmokeTest'
+}
+check.dependsOn tasks.named('stage15SmokeTest')
+
+
+// Stage 16: immutable subtree snapshots, asynchronous parent generation and stale-result rejection.
+tasks.register('stage16ParentSchedulerSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.ParentMeshBuildSchedulerSmokeTest'
+}
+tasks.register('stage16SmokeTest') { dependsOn tasks.named('stage16ParentSchedulerSmokeTest') }
+check.dependsOn tasks.named('stage16SmokeTest')
+
+
+// Stage 17: multi-level parent hierarchy generation (levels 1..tree max level).
+tasks.register('stage17MultiLevelParentSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.ParentMeshBuildSchedulerSmokeTest'
+}
+tasks.register('stage17SmokeTest') { dependsOn tasks.named('stage17MultiLevelParentSmokeTest') }
+check.dependsOn tasks.named('stage17SmokeTest')
+
+
+// Stage 18: distance-adaptive hierarchical parent/child selection with AABB distance and hysteresis.
+tasks.register('stage18HierarchicalLodSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.core.lod.HierarchicalLodSelectionSmokeTest'
+}
+tasks.register('stage18SmokeTest') { dependsOn tasks.named('stage18HierarchicalLodSmokeTest') }
+check.dependsOn tasks.named('stage18SmokeTest')
+
+
+// Stage 19: frame-time feedback for adaptive LOD quality and bounded per-frame work.
+tasks.register('stage19AdaptiveQualitySmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.quality.AdaptiveLodQualityControllerSmokeTest'
+}
+tasks.register('stage19SmokeTest') { dependsOn tasks.named('stage19AdaptiveQualitySmokeTest') }
+check.dependsOn tasks.named('stage19SmokeTest')
+
+
+// Stage 20: view- and movement-direction-aware predictive mesh scheduling.
+tasks.register('stage20PredictiveStreamingSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.streaming.PredictiveStreamingControllerSmokeTest'
+}
+tasks.register('stage20SmokeTest') { dependsOn tasks.named('stage20PredictiveStreamingSmokeTest') }
+check.dependsOn tasks.named('stage20SmokeTest')
