@@ -49,12 +49,12 @@ public final class PersistentSectionCache {
         } finally { if (!moved) Files.deleteIfExists(temp); }
     }
 
-    public synchronized int loadAll(ChunkSnapshotStore store, int maxToLoad) throws IOException {
+    public int loadAll(ChunkSnapshotStore store, int maxToLoad) throws IOException {
         return loadAll(store, maxToLoad, 0.0, 0.0, 0.0);
     }
 
     /** Restore nearest cached sections first, using block-space AABB distance. */
-    public synchronized int loadAll(ChunkSnapshotStore store, int maxToLoad,
+    public int loadAll(ChunkSnapshotStore store, int maxToLoad,
                                     double centerX, double centerY, double centerZ) throws IOException {
         if (store == null) throw new IllegalArgumentException("store required");
         final int[] count = {0};
@@ -76,7 +76,7 @@ public final class PersistentSectionCache {
     }
 
     /** Streams sections in nearest-first order; consumer may apply backpressure. */
-    public synchronized int loadEachNearest(int maxToLoad, double centerX, double centerY,
+    public int loadEachNearest(int maxToLoad, double centerX, double centerY,
                                             double centerZ, SectionConsumer consumer)
             throws IOException, InterruptedException {
         if (maxToLoad < 0 || consumer == null || !Double.isFinite(centerX)
