@@ -315,6 +315,10 @@ public final class GlesLodRenderer {
             ParentGeometryKey key = new ParentGeometryKey(node.origin(), node.level());
             live.add(key);
             if (node.hasCurrentGeometry()) continue;
+            // Build only the parent level selected for this region's distance band.
+            // Other missing levels are deferred; ready ancestors/descendants remain valid fallbacks.
+            if (!hierarchySelector.shouldBuildParentGeometry(node,
+                    contextFreeCameraX, contextFreeCameraY, contextFreeCameraZ)) continue;
             long revision = node.contentRevision();
             boolean alreadyRequested = parentBuildScheduler.hasRequest(key, revision);
             if (!alreadyRequested && parentBuildRequests >= streaming.maxNewBuildsPerFrame()) continue;

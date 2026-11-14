@@ -23,6 +23,16 @@ public final class HierarchicalLodSelectionSmokeTest {
             check(node.markGeometryReady(node.contentRevision()), "all node levels marked ready");
 
         HierarchicalLodSelector selector = new HierarchicalLodSelector();
+        LodNode root = tree.rootsSnapshot().get(0);
+        HierarchicalLodSelector buildPolicy = new HierarchicalLodSelector();
+        check(!buildPolicy.shouldBuildParentGeometry(root, 8, 8, 8),
+                "near camera defers coarse parent mesh generation");
+        check(buildPolicy.shouldBuildParentGeometry(root, 4000, 4000, 4000),
+                "far camera requests coarse parent mesh generation");
+        root.markGeometryReady(root.contentRevision());
+        check(!buildPolicy.shouldBuildParentGeometry(root, 4000, 4000, 4000),
+                "current parent geometry is not rebuilt");
+
         List<LodNodeTraversal.Selection> near = LodNodeTraversal.collectByDistance(tree, selector, 8, 8, 8);
         check(near.size() == 8, "near camera selects fine leaves");
         check(near.stream().allMatch(s -> s.node().level() == 0), "near selection contains only leaves");
@@ -45,7 +55,7 @@ public final class HierarchicalLodSelectionSmokeTest {
 
         selector.retainNodes(List.of());
         check(selector.trackedNodeCount() == 0, "removed nodes release hysteresis state");
-        System.out.println("HierarchicalLodSelectionSmokeTest: PASS (10 assertions)");
+        System.out.println("HierarchicalLodSelectionSmokeTest: PASS (13 assertions)");
     }
 
     private static void assertNoAncestorOverlap(List<LodNodeTraversal.Selection> selections) {

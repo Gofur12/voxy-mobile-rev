@@ -44,6 +44,16 @@ public final class HierarchicalLodSelector {
         return nowSelected;
     }
 
+    /**
+     * Whether a missing parent mesh is currently useful to build for the active distance band.
+     * Ready meshes are never rebuilt by this policy; non-preferred missing levels are deferred
+     * until the camera enters their hierarchy band.
+     */
+    public boolean shouldBuildParentGeometry(LodNode node, double cameraX, double cameraY, double cameraZ) {
+        return node != null && node.level() > 0 && !node.hasCurrentGeometry()
+                && prefersNode(node, cameraX, cameraY, cameraZ);
+    }
+
     /** Drops hysteresis state for nodes no longer present in the sparse tree. */
     public void retainNodes(List<LodNode> liveNodes) {
         Set<NodeKey> live = new HashSet<>();
