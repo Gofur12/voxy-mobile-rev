@@ -104,8 +104,15 @@ public final class VoxyMobileClient implements ClientModInitializer {
                 if (sectionIndex >= 0 && sectionIndex < currentSections.length) {
                     ChunkSection currentSection = currentSections[sectionIndex];
                     SectionPos position = new SectionPos(pending.chunkX, pending.sectionY, pending.chunkZ);
-                    if (currentSection.isEmpty()) STORE.removeSection(position);
-                    else STORE.put(capture(pending, currentSection));
+                    RESTORE_GATE.markLive(position);
+                    if (currentSection.isEmpty()) {
+                        STORE.removeSection(position);
+                        if (CACHE_WORKER != null) CACHE_WORKER.remove(position);
+                    } else {
+                        dev.brezze.voxymobile.core.voxel.VoxelSection snapshot = capture(pending, currentSection);
+                        STORE.put(snapshot);
+                        if (CACHE_WORKER != null) CACHE_WORKER.save(snapshot);
+                    }
                     RuntimeDiagnostics.sectionCaptured();
                 }
             }
@@ -116,6 +123,10 @@ public final class VoxyMobileClient implements ClientModInitializer {
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             synchronized (PENDING) { PENDING.clear(); }
             STORE.clear();
+            RESTORE_GATE.clear();
+            if (CACHE_WORKER != null) CACHE_WORKER.close();
+            CACHE_WORKER = null;
+            CACHE_WORLD = null;
         });
     }
 
