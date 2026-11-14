@@ -1,4 +1,11 @@
 {
   "key.voxymobile.toggle_seam_debug": "Toggle VoxyMobile Seam Debug Overlay",
-  "category.voxymobile": "VoxyMobile Reborn"
+  "category.voxymobile": "VoxyMobile Reborn",
+  "voxymobile.config.title": "VoxyMobile Reborn Settings",
+  "voxymobile.config.general": "General",
+  "voxymobile.config.rendering": "Rendering",
+  "voxymobile.config.lod_distance": "LOD Render Distance: %s blocks",
+  "voxymobile.config.terrain_ingestion": "Terrain Capture",
+  "voxymobile.config.renderer": "Enable Renderer",
+  "voxymobile.config.seam_debug": "Seam Debug Overlay"
 }
