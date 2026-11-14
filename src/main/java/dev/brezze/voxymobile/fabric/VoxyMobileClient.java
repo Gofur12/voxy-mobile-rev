@@ -84,7 +84,10 @@ public final class VoxyMobileClient implements ClientModInitializer {
                     String dimensionKey = client.world.getRegistryKey().getValue().toString();
                     Path cacheRoot = FabricLoader.getInstance().getConfigDir().resolve("voxymobile").resolve("terrain-cache");
                     CACHE_WORKER = new PersistentSectionCacheWorker(cacheRoot, worldKey, dimensionKey);
-                    CACHE_WORKER.load();
+                    double restoreX = client.player != null ? client.player.getX() : 0.0;
+                    double restoreY = client.player != null ? client.player.getY() : 0.0;
+                    double restoreZ = client.player != null ? client.player.getZ() : 0.0;
+                    CACHE_WORKER.load(restoreX, restoreY, restoreZ);
                     System.out.println("[VoxyMobile] persistent terrain cache opened for " + dimensionKey);
                 }
             }

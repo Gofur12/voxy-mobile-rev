@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'dev.brezze'
-version = '0.1.70-stage80'
+version = '0.1.71-stage81'
 
 base { archivesName = 'VoxyMobile-Reborn' }
 
@@ -769,3 +769,13 @@ tasks.register('stage80FarFieldBuildBudgetSmokeTest', JavaExec) {
 }
 tasks.register('stage80SmokeTest') { dependsOn tasks.named('stage80FarFieldBuildBudgetSmokeTest') }
 check.dependsOn tasks.named('stage80SmokeTest')
+
+
+// Stage 81: restore persistent terrain sections nearest to the player's current position first.
+tasks.register('stage81NearestCacheRestoreSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.core.PersistentSectionCachePrioritySmokeTest'
+}
+tasks.register('stage81SmokeTest') { dependsOn tasks.named('stage81NearestCacheRestoreSmokeTest') }
+check.dependsOn tasks.named('stage81SmokeTest')

@@ -27,11 +27,13 @@ public final class PersistentSectionCacheWorker implements AutoCloseable {
                 }, new ThreadPoolExecutor.DiscardOldestPolicy());
     }
 
-    public void load() {
+    public void load() { load(0.0, 0.0, 0.0); }
+
+    public void load(double centerX, double centerY, double centerZ) {
         execute(() -> {
             try {
                 ChunkSnapshotStore temporary = new ChunkSnapshotStore(PersistentSectionCache.DEFAULT_MAX_FILES);
-                cache.loadAll(temporary, PersistentSectionCache.DEFAULT_MAX_FILES);
+                cache.loadAll(temporary, PersistentSectionCache.DEFAULT_MAX_FILES, centerX, centerY, centerZ);
                 loaded.addAll(temporary.snapshot());
             } catch (IOException error) {
                 System.err.println("[VoxyMobile] cache load failed: " + error.getMessage());

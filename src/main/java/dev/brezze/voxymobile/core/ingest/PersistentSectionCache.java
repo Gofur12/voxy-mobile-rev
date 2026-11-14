@@ -50,13 +50,23 @@ public final class PersistentSectionCache {
     }
 
     public synchronized int loadAll(ChunkSnapshotStore store, int maxToLoad) throws IOException {
-        if (store == null || maxToLoad < 0) throw new IllegalArgumentException();
+        return loadAll(store, maxToLoad, 0.0, 0.0, 0.0);
+    }
+
+    /** Restore the nearest cached sections first, using block-space AABB distance. */
+    public synchronized int loadAll(ChunkSnapshotStore store, int maxToLoad,
+                                    double centerX, double centerY, double centerZ) throws IOException {
+        if (store == null || maxToLoad < 0 || !Double.isFinite(centerX)
+                || !Double.isFinite(centerY) || !Double.isFinite(centerZ))
+            throw new IllegalArgumentException();
         if (!Files.isDirectory(directory) || maxToLoad == 0) return 0;
         List<Path> files = new ArrayList<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory, "*.vms")) {
             for (Path file : stream) files.add(file);
         }
-        files.sort(Comparator.comparingLong(PersistentSectionCache::modified).reversed());
+        files.sort(Comparator
+                .comparingDouble((Path file) -> distanceSquared(file, centerX, centerY, centerZ))
+                .thenComparing(Comparator.comparingLong(PersistentSectionCache::modified).reversed()));
         int loaded = 0;
         for (Path file : files) {
             if (loaded >= maxToLoad) break;
@@ -64,6 +74,28 @@ public final class PersistentSectionCache {
             catch (IOException | RuntimeException ignored) { /* corrupt entries are skipped */ }
         }
         return loaded;
+    }
+
+    private static double distanceSquared(Path file, double x, double y, double z) {
+        String name = file.getFileName().toString();
+        if (!name.endsWith(".vms")) return Double.POSITIVE_INFINITY;
+        String[] coordinates = name.substring(0, name.length() - 4).split("_");
+        if (coordinates.length != 3) return Double.POSITIVE_INFINITY;
+        try {
+            double minX = Integer.parseInt(coordinates[0]) * 16.0;
+            double minY = Integer.parseInt(coordinates[1]) * 16.0;
+            double minZ = Integer.parseInt(coordinates[2]) * 16.0;
+            double dx = axisDistance(x, minX, minX + 16.0);
+            double dy = axisDistance(y, minY, minY + 16.0);
+            double dz = axisDistance(z, minZ, minZ + 16.0);
+            return dx * dx + dy * dy + dz * dz;
+        } catch (NumberFormatException ignored) {
+            return Double.POSITIVE_INFINITY;
+        }
+    }
+
+    private static double axisDistance(double point, double min, double max) {
+        return point < min ? min - point : point > max ? point - max : 0.0;
     }
 
     public synchronized boolean remove(SectionPos position) throws IOException { return Files.deleteIfExists(fileFor(position)); }
