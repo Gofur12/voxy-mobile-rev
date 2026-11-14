@@ -8,8 +8,16 @@ public final class LodSeamAsyncBuildQueueSmokeTest {
         LodSeamAsyncBuildQueue queue = new LodSeamAsyncBuildQueue(1, 2);
         try {
             LodSeamKey key = new LodSeamKey(11L, 22L);
-            if (!queue.submit(key, 7L, () -> null)) throw new AssertionError("submit rejected");
-            if (queue.submit(key, 8L, () -> null)) throw new AssertionError("duplicate key accepted");
+            CountDownLatch duplicateBuildStarted = new CountDownLatch(1);
+            CountDownLatch releaseDuplicateBuild = new CountDownLatch(1);
+            if (!queue.submit(key, 7L, () -> {
+                duplicateBuildStarted.countDown();
+                if (!releaseDuplicateBuild.await(2L, TimeUnit.SECONDS)) throw new AssertionError("duplicate test timeout");
+                return null;
+            })) throw new AssertionError("submit rejected");
+            if (!duplicateBuildStarted.await(2L, TimeUnit.SECONDS)) throw new AssertionError("worker did not start duplicate test");
+            if (queue.submit(key, 8L, () -> null)) throw new AssertionError("duplicate key accepted while pending");
+            releaseDuplicateBuild.countDown();
             long until = System.nanoTime() + 2_000_000_000L;
             LodSeamAsyncBuildQueue.Completed result = null;
             while (result == null && System.nanoTime() < until) {
