@@ -33,3 +33,8 @@ The complete Gradle/Fabric build and Zalith + MobileGlues runtime have not been 
 ## Voxy PC reference boundary
 
 The supplied Voxy JAR was inspected structurally with `jar` and `javap`. Its hierarchical node traversal, asynchronous generation, and distance tracking informed design choices only. This project does not copy Voxy code or its compute/SSBO/Hi-Z renderer; it uses the GLES 3.x VAO/VBO/EBO path and targets Minecraft 1.20.1 / Java 17.
+
+
+## Stage 20.2 API compatibility patch
+
+Stage 20.2 fixes two Minecraft 1.20.1 Yarn API calls in the client chunk ingestion adapter: loaded-chunk identity is checked without forcing chunk generation, and block-state raw IDs use `Block.getRawIdFromState`. See `docs/STAGE20_2_MINECRAFT_API_FIX.md`.

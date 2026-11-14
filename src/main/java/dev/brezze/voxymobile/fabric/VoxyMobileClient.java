@@ -12,6 +12,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.block.Block;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.world.chunk.ChunkSection;
+import net.minecraft.world.chunk.ChunkStatus;
 import net.minecraft.world.chunk.WorldChunk;
 import java.util.ArrayDeque;
 import java.util.Queue;
@@ -34,7 +35,8 @@ public final class VoxyMobileClient implements ClientModInitializer {
             PendingSection pending;
             synchronized (PENDING) { pending = PENDING.poll(); }
             if (pending != null && client.world != null && client.world == pending.world
-                    && pending.chunk.isLoaded()) {
+                    && client.world.getChunkManager().getChunk(
+                            pending.chunkX, pending.chunkZ, ChunkStatus.FULL, false) == pending.chunk) {
                 STORE.put(capture(pending));
             }
         });
@@ -59,7 +61,7 @@ public final class VoxyMobileClient implements ClientModInitializer {
         int[] ids = new int[4096];
         int i = 0;
         for (int y = 0; y < 16; y++) for (int z = 0; z < 16; z++) for (int x = 0; x < 16; x++)
-            ids[i++] = Block.getRawId(p.section.getBlockState(x, y, z));
+            ids[i++] = Block.getRawIdFromState(p.section.getBlockState(x, y, z));
         return SectionSnapshotBuilder.build(new SectionPos(p.chunkX, p.sectionY, p.chunkZ), ids);
     }
 
