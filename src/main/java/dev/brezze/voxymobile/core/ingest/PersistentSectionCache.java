@@ -58,10 +58,15 @@ public final class PersistentSectionCache {
                                     double centerX, double centerY, double centerZ) throws IOException {
         if (store == null) throw new IllegalArgumentException("store required");
         final int[] count = {0};
-        loadEachNearest(maxToLoad, centerX, centerY, centerZ, section -> {
-            store.put(section);
-            count[0]++;
-        });
+        try {
+            loadEachNearest(maxToLoad, centerX, centerY, centerZ, section -> {
+                store.put(section);
+                count[0]++;
+            });
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IOException("cache restore interrupted", interrupted);
+        }
         return count[0];
     }
 

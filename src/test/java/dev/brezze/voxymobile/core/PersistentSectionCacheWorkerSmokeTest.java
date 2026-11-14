@@ -33,12 +33,13 @@ public final class PersistentSectionCacheWorkerSmokeTest {
                 throw new AssertionError("async cache restore failed");
             reader.close();
             // Backpressure keeps the worker-to-client handoff bounded while still restoring every entry.
+            reader.close();
+            PersistentSectionCache bulkCache = new PersistentSectionCache(root, "world", "overworld");
             for (int i = 0; i < 200; i++) {
                 int[] data = new int[VoxelSection.VOLUME];
                 data[0] = i + 1;
-                reader.save(SectionSnapshotBuilder.build(new SectionPos(i + 20, 0, 0), data));
+                bulkCache.save(SectionSnapshotBuilder.build(new SectionPos(i + 20, 0, 0), data));
             }
-            reader.close();
             PersistentSectionCacheWorker bulkReader = new PersistentSectionCacheWorker(root, "world", "overworld");
             bulkReader.load(8.0, 8.0, 8.0);
             for (int i = 0; i < 100 && bulkReader.pendingLoaded() == 0; i++)
