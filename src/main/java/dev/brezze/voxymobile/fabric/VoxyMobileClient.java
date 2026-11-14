@@ -39,11 +39,15 @@ public final class VoxyMobileClient implements ClientModInitializer {
     private static PersistentSectionCacheWorker CACHE_WORKER;
     private static ClientWorld CACHE_WORLD;
     private static final LiveSectionRestoreGate RESTORE_GATE = new LiveSectionRestoreGate();
+    private static volatile boolean terrainIngestionEnabled = true;
 
     @Override public void onInitializeClient() {
         System.out.println("[VoxyMobile] client initializer active; waiting for chunk and world-render events");
         int lodDistance = LodDistanceConfig.load();
         RENDERER.setMaxLodDistance(lodDistance);
+        RENDERER.setEnabled(LodDistanceConfig.rendererEnabled());
+        RENDERER.setSeamDebugOverlayEnabled(LodDistanceConfig.seamDebugOverlayEnabled());
+        terrainIngestionEnabled = LodDistanceConfig.terrainIngestionEnabled();
         System.out.println("[VoxyMobile] independent LOD distance=" + lodDistance + " blocks");
         WorldRenderEvents.AFTER_ENTITIES.register(RENDERER::render);
         TOGGLE_SEAM_DEBUG = KeyBindingHelper.registerKeyBinding(new KeyBinding(
@@ -131,6 +135,7 @@ public final class VoxyMobileClient implements ClientModInitializer {
     }
 
     private static void enqueueChunk(ClientWorld world, WorldChunk chunk) {
+        if (!terrainIngestionEnabled) return;
         ChunkSection[] sections = chunk.getSectionArray();
         int bottomSectionY = world.getBottomSectionCoord();
         int queued = 0;
@@ -145,6 +150,7 @@ public final class VoxyMobileClient implements ClientModInitializer {
 
     /** Called after a successful client-side block update. */
     public static void onBlockStateChanged(ClientWorld world, BlockPos pos) {
+        if (!terrainIngestionEnabled) return;
         int chunkX = pos.getX() >> 4;
         int chunkZ = pos.getZ() >> 4;
         WorldChunk chunk = world.getChunkManager().getChunk(chunkX, chunkZ, ChunkStatus.FULL, false);
@@ -182,7 +188,26 @@ public final class VoxyMobileClient implements ClientModInitializer {
     }
 
     public static ChunkSnapshotStore store() { return STORE; }
-    public static void setSeamDebugOverlayEnabled(boolean enabled) { RENDERER.setSeamDebugOverlayEnabled(enabled); }
+    public static void applyLodDistance(int distance) {
+        int normalized = dev.brezze.voxymobile.core.config.LodDistancePolicy.normalize(distance);
+        LodDistanceConfig.setDistance(normalized);
+        RENDERER.setMaxLodDistance(normalized);
+    }
+    public static void setRendererEnabled(boolean enabled) {
+        LodDistanceConfig.setRendererEnabled(enabled);
+        RENDERER.setEnabled(enabled);
+    }
+    public static void setTerrainIngestionEnabled(boolean enabled) {
+        terrainIngestionEnabled = enabled;
+        LodDistanceConfig.setTerrainIngestionEnabled(enabled);
+    }
+    public static boolean isTerrainIngestionEnabled() { return terrainIngestionEnabled; }
+    public static void setSeamDebugOverlayEnabled(boolean enabled) {
+        LodDistanceConfig.setSeamDebugOverlayEnabled(enabled);
+        RENDERER.setSeamDebugOverlayEnabled(enabled);
+    }
+    public static boolean isRendererEnabled() { return RENDERER.isEnabled(); }
+    public static boolean isSeamDebugOverlayEnabled() { return RENDERER.isSeamDebugOverlayEnabled(); }
 
     private record PendingSection(ClientWorld world, WorldChunk chunk,
                                   int chunkX, int sectionY, int chunkZ) {}

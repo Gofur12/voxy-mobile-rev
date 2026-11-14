@@ -125,6 +125,7 @@ public final class GlesLodRenderer {
     private int mvpLocation = -1;
     private int cameraLocation = -1;
     private boolean failed;
+    private boolean enabled = true;
     private long previousRenderNanos;
     private double cameraForwardX;
     private double cameraForwardY;
@@ -134,8 +135,11 @@ public final class GlesLodRenderer {
 
     public GlesLodRenderer(ChunkSnapshotStore store) { this.store = store; }
 
+    public void setEnabled(boolean enabled) { this.enabled = enabled; }
+    public boolean isEnabled() { return enabled; }
+
     public void render(WorldRenderContext context) {
-        if (failed) return;
+        if (failed || !enabled) return;
         try {
             if (program == 0) initializeProgram();
             Map<SectionPos, VoxelSection> current = new HashMap<>();

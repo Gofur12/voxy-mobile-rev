@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "voxymobile",
-  "version": "0.1.57-stage67",
+  "version": "${version}",
   "name": "Voxy Mobile Reborn",
   "description": "Mobile-oriented hierarchical LOD renderer for Minecraft 1.20.1 with optional GLES seam-bound debug overlay (Stage 52).",
   "authors": [
@@ -14,6 +14,9 @@
   "entrypoints": {
     "client": [
       "dev.brezze.voxymobile.fabric.VoxyMobileClient"
+    ],
+    "modmenu": [
+      "dev.brezze.voxymobile.fabric.VoxyMobileModMenu"
     ]
   },
   "depends": {
@@ -21,5 +24,8 @@
     "minecraft": "1.20.1",
     "java": ">=17",
     "fabric-api": "*"
+  },
+  "suggests": {
+    "modmenu": "*"
   }
 }
