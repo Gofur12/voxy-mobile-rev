@@ -5,7 +5,6 @@ import dev.brezze.voxymobile.core.voxel.VoxelSection;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -17,6 +16,8 @@ public final class PersistentSectionCacheWorker implements AutoCloseable {
     private final ThreadPoolExecutor io;
     private volatile boolean closed;
     private volatile boolean loadComplete;
+    private volatile boolean loadFinished;
+    private volatile boolean loadFailed;
 
     public PersistentSectionCacheWorker(Path root, String worldKey, String dimensionKey) {
         cache = new PersistentSectionCache(root, worldKey, dimensionKey);
@@ -32,6 +33,7 @@ public final class PersistentSectionCacheWorker implements AutoCloseable {
 
     public void load(double centerX, double centerY, double centerZ) {
         execute(() -> {
+            boolean completedNormally = false;
             try {
                 cache.loadEachNearest(PersistentSectionCache.DEFAULT_MAX_FILES, centerX, centerY, centerZ,
                         section -> {
@@ -39,12 +41,15 @@ public final class PersistentSectionCacheWorker implements AutoCloseable {
                                 throw new InterruptedException("cache worker closed");
                             loaded.put(section);
                         });
+                completedNormally = !closed && !Thread.currentThread().isInterrupted();
             } catch (InterruptedException interrupted) {
                 Thread.currentThread().interrupt();
             } catch (IOException error) {
+                loadFailed = true;
                 System.err.println("[VoxyMobile] cache load failed: " + error.getMessage());
             } finally {
-                loadComplete = true;
+                loadComplete = completedNormally && !loadFailed;
+                loadFinished = completedNormally || loadFailed;
             }
         });
     }
@@ -67,7 +72,11 @@ public final class PersistentSectionCacheWorker implements AutoCloseable {
 
     public VoxelSection pollLoaded() { return loaded.poll(); }
     public int pendingLoaded() { return loaded.size(); }
+    /** True only when the entire cache scan completed without cancellation or I/O failure. */
     public boolean isLoadComplete() { return loadComplete; }
+    /** True when restore reached a terminal state, including failure. */
+    public boolean isLoadFinished() { return loadFinished; }
+    public boolean isLoadFailed() { return loadFailed; }
 
     private void execute(Runnable task) {
         if (closed) return;
