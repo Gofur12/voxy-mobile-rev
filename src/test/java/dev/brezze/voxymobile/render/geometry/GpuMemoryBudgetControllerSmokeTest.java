@@ -13,10 +13,15 @@ public final class GpuMemoryBudgetControllerSmokeTest {
         check(policy.pressureLevel(900) == 2, "high pressure");
         check(policy.pressureLevel(1_000) == 3, "budget exceeded");
         check(policy.budgetBytes() == 1_000 && policy.evictionTargetBytes() == 780, "budget values");
+        policy.setBudgetBytes(2_000);
+        check(policy.budgetBytes() == 2_000 && policy.evictionTargetBytes() == 1_560, "live budget update");
+        boolean updateRejected = false;
+        try { policy.setBudgetBytes(0); } catch (IllegalArgumentException expected) { updateRejected = true; }
+        check(updateRejected, "reject invalid live budget");
         boolean rejected = false;
         try { new GpuMemoryBudgetController(0); } catch (IllegalArgumentException expected) { rejected = true; }
         check(rejected, "reject invalid budget");
-        System.out.println("GpuMemoryBudgetControllerSmokeTest: 10 assertions passed");
+        System.out.println("GpuMemoryBudgetControllerSmokeTest: 12 assertions passed");
     }
     private static void check(boolean condition, String message) {
         if (!condition) throw new AssertionError(message);

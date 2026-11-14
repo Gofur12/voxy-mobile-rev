@@ -15,6 +15,7 @@ public final class VoxyMobileConfigScreen extends Screen {
     private Page page = Page.GENERAL;
     private LodSlider distanceSlider;
     private ThreadSlider threadSlider;
+    private GpuBudgetSlider gpuBudgetSlider;
 
     private enum Page { GENERAL, RENDERING }
 
@@ -28,6 +29,7 @@ public final class VoxyMobileConfigScreen extends Screen {
         clearChildren();
         distanceSlider = null;
         threadSlider = null;
+        gpuBudgetSlider = null;
         int center = width / 2;
         int panelWidth = Math.min(440, width - 24);
         int left = center - panelWidth / 2;
@@ -51,9 +53,11 @@ public final class VoxyMobileConfigScreen extends Screen {
         } else {
             addToggle(left, 65, panelWidth, "voxymobile.config.renderer",
                     VoxyMobileClient.isRendererSettingEnabled(), VoxyMobileClient::setRendererEnabled);
-            distanceSlider = new LodSlider(left + 8, 181, panelWidth - 16, 20, LodDistanceConfig.distance());
+            distanceSlider = new LodSlider(left + 8, 173, panelWidth - 16, 20, LodDistanceConfig.distance());
             addDrawableChild(distanceSlider);
-            addToggle(left, 218, panelWidth, "voxymobile.config.seam_debug",
+            gpuBudgetSlider = new GpuBudgetSlider(left + 8, 237, panelWidth - 16, 20, LodDistanceConfig.gpuMemoryBudgetMb());
+            addDrawableChild(gpuBudgetSlider);
+            addToggle(left, 264, panelWidth, "voxymobile.config.seam_debug",
                     VoxyMobileClient.isSeamDebugOverlayEnabled(), VoxyMobileClient::setSeamDebugOverlayEnabled);
         }
 
@@ -89,11 +93,15 @@ public final class VoxyMobileConfigScreen extends Screen {
                     threadSlider == null ? LodDistanceConfig.serviceThreads() : threadSlider.threads()), center, 149, 0xFFFFFF);
             drawGroup(context, left, 202, panelWidth, 57, "voxymobile.config.group.terrain");
         } else {
-            drawGroup(context, left, 144, panelWidth, 117, "voxymobile.config.group.distance");
+            drawGroup(context, left, 126, panelWidth, 186, "voxymobile.config.group.distance");
             context.drawCenteredTextWithShadow(textRenderer,
                     Text.translatable("voxymobile.config.lod_distance", distanceSlider == null
                             ? LodDistanceConfig.distance() : distanceSlider.distance()),
-                    center, 166, 0xFFFFFF);
+                    center, 151, 0xFFFFFF);
+            context.drawCenteredTextWithShadow(textRenderer,
+                    Text.translatable("voxymobile.config.gpu_memory", gpuBudgetSlider == null
+                            ? LodDistanceConfig.gpuMemoryBudgetMb() : gpuBudgetSlider.megabytes()),
+                    center, 215, 0xFFFFFF);
         }
         super.render(context, mouseX, mouseY, delta);
     }
@@ -108,6 +116,7 @@ public final class VoxyMobileConfigScreen extends Screen {
     public void close() {
         if (distanceSlider != null) VoxyMobileClient.applyLodDistance(distanceSlider.distance());
         if (threadSlider != null) LodDistanceConfig.setServiceThreads(threadSlider.threads());
+        if (gpuBudgetSlider != null) VoxyMobileClient.setGpuMemoryBudgetMb(gpuBudgetSlider.megabytes());
         if (client != null) client.setScreen(parent);
     }
 
@@ -120,6 +129,24 @@ public final class VoxyMobileConfigScreen extends Screen {
         int threads() { return threads; }
         @Override protected void updateMessage() { setMessage(Text.translatable("voxymobile.config.service_threads", threads)); }
         @Override protected void applyValue() { threads = Math.max(1, Math.min(4, 1 + (int)Math.round(value * 3.0))); }
+    }
+
+    private static final class GpuBudgetSlider extends SliderWidget {
+        private int megabytes;
+        GpuBudgetSlider(int x, int y, int width, int height, int initial) {
+            super(x, y, width, height, Text.empty(),
+                    (double)(dev.brezze.voxymobile.core.config.GpuMemoryBudgetPolicy.normalize(initial) - 32) / 224.0);
+            megabytes = dev.brezze.voxymobile.core.config.GpuMemoryBudgetPolicy.normalize(initial);
+            updateMessage();
+        }
+        int megabytes() { return megabytes; }
+        @Override protected void updateMessage() {
+            setMessage(Text.translatable("voxymobile.config.gpu_memory", megabytes));
+        }
+        @Override protected void applyValue() {
+            int raw = 32 + (int)Math.round(value * 224.0 / 16.0) * 16;
+            megabytes = dev.brezze.voxymobile.core.config.GpuMemoryBudgetPolicy.normalize(raw);
+        }
     }
 
     private static final class LodSlider extends SliderWidget {
