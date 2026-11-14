@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'dev.brezze'
-version = '0.1.54-stage64'
+version = '0.1.55-stage65'
 
 base { archivesName = 'VoxyMobile-Reborn' }
 
@@ -633,3 +633,13 @@ tasks.register('stage64ParentLodPrioritySmokeTest', JavaExec) {
 }
 tasks.register('stage64SmokeTest') { dependsOn tasks.named('stage64ParentLodPrioritySmokeTest') }
 check.dependsOn tasks.named('stage64SmokeTest')
+
+
+// Stage 65: versioned, bounded persistent terrain cache core.
+tasks.register('stage65PersistentTerrainCacheSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.core.PersistentSectionCacheSmokeTest'
+}
+tasks.register('stage65SmokeTest') { dependsOn tasks.named('stage65PersistentTerrainCacheSmokeTest') }
+check.dependsOn tasks.named('stage65SmokeTest')
