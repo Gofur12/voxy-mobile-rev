@@ -48,6 +48,16 @@ public final class PersistentSectionCacheWorkerSmokeTest {
                 TimeUnit.MILLISECONDS.sleep(10);
             if (bulkReader.pendingLoaded() > 128)
                 throw new AssertionError("loaded handoff exceeded fixed capacity");
+            // A full restore handoff must not block live terrain writes.
+            int[] liveData = new int[VoxelSection.VOLUME];
+            liveData[0] = 777;
+            VoxelSection liveSection = SectionSnapshotBuilder.build(new SectionPos(500, 0, 0), liveData);
+            bulkReader.save(liveSection);
+            Path liveFile = root.resolve("world").resolve("overworld").resolve("500_0_0.vms");
+            for (int i = 0; i < 200 && !Files.exists(liveFile); i++)
+                TimeUnit.MILLISECONDS.sleep(10);
+            if (!Files.exists(liveFile))
+                throw new AssertionError("live cache save was blocked by restore backpressure");
             List<VoxelSection> drained = new ArrayList<>();
             for (int i = 0; i < 500 && (!bulkReader.isLoadComplete() || bulkReader.pendingLoaded() > 0); i++) {
                 VoxelSection next = bulkReader.pollLoaded();
