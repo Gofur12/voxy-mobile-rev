@@ -342,6 +342,8 @@ public final class GlesLodRenderer {
             boolean inFrustum = schedulingFrustum.isVisible((float) minX, (float) minY, (float) minZ,
                     (float) (minX + span), (float) (minY + span), (float) (minZ + span));
             priority = visibilityStreaming.parentPriority(priority, inFrustum);
+            // Coarse parents cover more terrain: schedule them before fine refinement at comparable distance.
+            priority = dev.brezze.voxymobile.render.streaming.ParentLodBuildPriority.apply(priority, node.level());
             if (parentBuildScheduler.request(snapshot, priority) && !alreadyRequested) parentBuildRequests++;
         }
 

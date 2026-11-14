@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'dev.brezze'
-version = '0.1.53-stage63'
+version = '0.1.54-stage64'
 
 base { archivesName = 'VoxyMobile-Reborn' }
 
@@ -623,3 +623,13 @@ tasks.register('stage63IndependentLodDistanceSmokeTest', JavaExec) {
 }
 tasks.register('stage63SmokeTest') { dependsOn tasks.named('stage63IndependentLodDistanceSmokeTest') }
 check.dependsOn tasks.named('stage63SmokeTest')
+
+
+// Stage 64: coarse parent LODs receive bounded priority so far-field coverage is built first.
+tasks.register('stage64ParentLodPrioritySmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.streaming.ParentLodBuildPrioritySmokeTest'
+}
+tasks.register('stage64SmokeTest') { dependsOn tasks.named('stage64ParentLodPrioritySmokeTest') }
+check.dependsOn tasks.named('stage64SmokeTest')
