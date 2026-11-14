@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'dev.brezze'
-version = '0.1.49-stage59'
+version = '0.1.50-stage60'
 
 base { archivesName = 'VoxyMobile-Reborn' }
 
@@ -583,3 +583,13 @@ tasks.register('stage59LodSeamCompletedQueueSmokeTest', JavaExec) {
 }
 tasks.register('stage59SmokeTest') { dependsOn tasks.named('stage59LodSeamCompletedQueueSmokeTest') }
 check.dependsOn tasks.named('stage59SmokeTest')
+
+
+// Stage 60: stitch terrain seam boundaries by shared horizontal progress, not equal endpoint height.
+tasks.register('stage60ProjectedSeamZipperSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.LodSeamLiveProducerSmokeTest'
+}
+tasks.register('stage60SmokeTest') { dependsOn tasks.named('stage60ProjectedSeamZipperSmokeTest') }
+check.dependsOn tasks.named('stage60SmokeTest')

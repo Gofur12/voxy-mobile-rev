@@ -33,13 +33,20 @@ public final class LodSeamPatchData {
     }
 
 
-    /** Builds a zipper patch while preserving interpolated RGBA values from both source meshes. */
+    /** Builds a zipper patch for edges that share a horizontal progress axis, preserving source RGBA. */
     public static LodSeamPatchData buildPackedEdges(float[] fineEdge, float[] coarseEdge) {
+        return buildPackedEdges(fineEdge, coarseEdge, -1, 1.0e-4f);
+    }
+
+    public static LodSeamPatchData buildPackedEdges(float[] fineEdge, float[] coarseEdge,
+                                                     int progressAxis, float tolerance) {
         validatePackedEdge(fineEdge, "fineEdge");
         validatePackedEdge(coarseEdge, "coarseEdge");
         float[] fineXYZ = xyz(fineEdge);
         float[] coarseXYZ = xyz(coarseEdge);
-        int[] raw = LodSeamStitcher.stitch(fineXYZ, coarseXYZ);
+        int[] raw = progressAxis < 0
+                ? LodSeamStitcher.stitch(fineXYZ, coarseXYZ)
+                : LodSeamStitcher.stitch(fineXYZ, coarseXYZ, progressAxis, tolerance);
         float[] packed = new float[fineEdge.length + coarseEdge.length];
         System.arraycopy(fineEdge, 0, packed, 0, fineEdge.length);
         System.arraycopy(coarseEdge, 0, packed, fineEdge.length, coarseEdge.length);

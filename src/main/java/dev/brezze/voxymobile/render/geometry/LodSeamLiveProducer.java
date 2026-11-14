@@ -42,12 +42,12 @@ public final class LodSeamLiveProducer {
                 fine.copyVertices(), fine.segmentCount(), tolerance, 64);
         BoundaryContourStitcher.Contours coarseContours = BoundaryContourStitcher.stitch(
                 coarse.copyVertices(), coarse.segmentCount(), tolerance, 64);
-        EdgePair pair = matchingOpenPair(fineContours, coarseContours, tolerance);
+        EdgePair pair = matchingOpenPair(fineContours, coarseContours, rangeAxisB, tolerance);
         if (pair == null) return new Result(null, "matching-open-boundary-not-found", audit);
         float[] fineEdge = pair.fine;
         float[] coarseEdge = pair.coarse;
         try {
-            LodSeamPatchData patch = LodSeamPatchData.buildPackedEdges(fineEdge, coarseEdge);
+            LodSeamPatchData patch = LodSeamPatchData.buildPackedEdges(fineEdge, coarseEdge, rangeAxisB, tolerance);
             if (patch.indexCount() == 0) return new Result(null, "empty-patch", audit);
             return new Result(new LodSeamGpuMeshData(key, revision, patch), "generated", audit);
         } catch (IllegalArgumentException invalidGeometry) {
@@ -56,7 +56,8 @@ public final class LodSeamLiveProducer {
     }
 
     private static EdgePair matchingOpenPair(BoundaryContourStitcher.Contours fine,
-                                             BoundaryContourStitcher.Contours coarse, float tolerance) {
+                                             BoundaryContourStitcher.Contours coarse,
+                                             int progressAxis, float tolerance) {
         EdgePair best = null;
         int bestScore = -1;
         for (int i = 0; i < fine.contourCount(); i++) {
@@ -65,8 +66,8 @@ public final class LodSeamLiveProducer {
             for (int j = 0; j < coarse.contourCount(); j++) {
                 if (coarse.isClosed(j)) continue;
                 float[] c = coarse.copyContour(j);
-                if (!endpointsMatch(f, c, tolerance)) reversePacked(c);
-                if (!endpointsMatch(f, c, tolerance)) continue;
+                if (!projectedEndpointsMatch(f, c, progressAxis, tolerance)) reversePacked(c);
+                if (!projectedEndpointsMatch(f, c, progressAxis, tolerance)) continue;
                 int score = f.length / 7 + c.length / 7;
                 if (score > bestScore) { best = new EdgePair(f, c); bestScore = score; }
             }
@@ -74,16 +75,14 @@ public final class LodSeamLiveProducer {
         return best;
     }
     private record EdgePair(float[] fine, float[] coarse) {}
-    private static boolean endpointsMatch(float[] a, float[] b, float eps) {
+    private static boolean projectedEndpointsMatch(float[] a, float[] b, int axis, float eps) {
         int an = a.length - 7, bn = b.length - 7;
-        return distanceSquared(a, 0, b, 0) <= eps * eps && distanceSquared(a, an, b, bn) <= eps * eps;
+        return Math.abs(a[axis] - b[axis]) <= eps
+                && Math.abs(a[an + axis] - b[bn + axis]) <= eps;
     }
     private static void reversePacked(float[] points) {
         for (int i = 0, j = points.length - 7; i < j; i += 7, j -= 7) {
             for (int k = 0; k < 7; k++) { float v = points[i + k]; points[i + k] = points[j + k]; points[j + k] = v; }
         }
-    }
-    private static float distanceSquared(float[] a, int ai, float[] b, int bi) {
-        float x=a[ai]-b[bi], y=a[ai+1]-b[bi+1], z=a[ai+2]-b[bi+2]; return x*x+y*y+z*z;
     }
 }

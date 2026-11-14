@@ -4,8 +4,10 @@ package dev.brezze.voxymobile.render.geometry;
 public final class LodSeamLiveProducerSmokeTest {
     public static void main(String[] args) {
         LodSeamKey key = new LodSeamKey(11L, 22L);
-        Mesh fine = strip(new float[]{1.0f, 1.6f, 1.0f}, 0.2f, 0.4f, 0.6f);
-        Mesh coarse = strip(new float[]{1.0f, 1.0f}, 0.8f, 0.7f, 0.3f);
+        // The two terrain surfaces deliberately have different heights at both shared-edge ends.
+        // Their horizontal Z extent matches, which is sufficient for a terrain seam zipper.
+        Mesh fine = strip(new float[]{1.3f, 1.8f, 1.1f}, 0.2f, 0.4f, 0.6f);
+        Mesh coarse = strip(new float[]{0.8f, 0.9f}, 0.8f, 0.7f, 0.3f);
         LodSeamLiveProducer.Result result = LodSeamLiveProducer.generate(key, 7L,
                 fine.vertices, fine.indices, coarse.vertices, coarse.indices,
                 0, 0.0f, 1, 0.0f, 2.0f, 2, 0.0f, 1.0f, 1.0e-3f, 64);
@@ -25,7 +27,7 @@ public final class LodSeamLiveProducerSmokeTest {
                 fine.vertices, fine.indices, fine.vertices, fine.indices,
                 0, 50.0f, 1, 0.0f, 2.0f, 2, 0.0f, 1.0f, 1.0e-3f, 64);
         check(!missing.generated() && "boundary-missing".equals(missing.status()), "missing plane boundary is rejected cleanly");
-        System.out.println("LodSeamLiveProducerSmokeTest PASS (10 assertions)");
+        System.out.println("LodSeamLiveProducerSmokeTest PASS (10 assertions; mismatched-height endpoints supported)");
     }
 
     private static boolean hasColor(float[] vertices, float r, float g, float b) {
