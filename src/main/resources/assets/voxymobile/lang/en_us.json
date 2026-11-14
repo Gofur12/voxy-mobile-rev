@@ -12,5 +12,7 @@
   "voxymobile.config.group.general": "Voxy",
   "voxymobile.config.group.renderer": "Rendering",
   "voxymobile.config.group.terrain": "Terrain Ingestion",
-  "voxymobile.config.group.distance": "LOD Quality and Distance"
+  "voxymobile.config.group.distance": "LOD Quality and Distance",
+  "voxymobile.config.group.threads": "Background Service",
+  "voxymobile.config.service_threads": "Service Threads: %s (restart required)"
 }

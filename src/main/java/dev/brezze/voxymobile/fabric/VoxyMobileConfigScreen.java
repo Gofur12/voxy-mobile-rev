@@ -14,6 +14,7 @@ public final class VoxyMobileConfigScreen extends Screen {
     private final Screen parent;
     private Page page = Page.GENERAL;
     private LodSlider distanceSlider;
+    private ThreadSlider threadSlider;
 
     private enum Page { GENERAL, RENDERING }
 
@@ -26,6 +27,7 @@ public final class VoxyMobileConfigScreen extends Screen {
     protected void init() {
         clearChildren();
         distanceSlider = null;
+        threadSlider = null;
         int center = width / 2;
         int panelWidth = Math.min(440, width - 24);
         int left = center - panelWidth / 2;
@@ -42,7 +44,9 @@ public final class VoxyMobileConfigScreen extends Screen {
         if (page == Page.GENERAL) {
             addToggle(left, 65, panelWidth, "voxymobile.config.enabled",
                     VoxyMobileClient.isEnabled(), VoxyMobileClient::setEnabled);
-            addToggle(left, 151, panelWidth, "voxymobile.config.terrain_ingestion",
+            threadSlider = new ThreadSlider(left + 8, 164, panelWidth - 16, 20, LodDistanceConfig.serviceThreads());
+            addDrawableChild(threadSlider);
+            addToggle(left, 218, panelWidth, "voxymobile.config.terrain_ingestion",
                     VoxyMobileClient.isTerrainIngestionEnabled(), VoxyMobileClient::setTerrainIngestionEnabled);
         } else {
             addToggle(left, 65, panelWidth, "voxymobile.config.renderer",
@@ -80,7 +84,10 @@ public final class VoxyMobileConfigScreen extends Screen {
         drawGroup(context, left, 58, panelWidth, 57,
                 page == Page.GENERAL ? "voxymobile.config.group.general" : "voxymobile.config.group.renderer");
         if (page == Page.GENERAL) {
-            drawGroup(context, left, 144, panelWidth, 57, "voxymobile.config.group.terrain");
+            drawGroup(context, left, 125, panelWidth, 66, "voxymobile.config.group.threads");
+            context.drawCenteredTextWithShadow(textRenderer, Text.translatable("voxymobile.config.service_threads",
+                    threadSlider == null ? LodDistanceConfig.serviceThreads() : threadSlider.threads()), center, 149, 0xFFFFFF);
+            drawGroup(context, left, 202, panelWidth, 57, "voxymobile.config.group.terrain");
         } else {
             drawGroup(context, left, 144, panelWidth, 117, "voxymobile.config.group.distance");
             context.drawCenteredTextWithShadow(textRenderer,
@@ -100,7 +107,19 @@ public final class VoxyMobileConfigScreen extends Screen {
     @Override
     public void close() {
         if (distanceSlider != null) VoxyMobileClient.applyLodDistance(distanceSlider.distance());
+        if (threadSlider != null) LodDistanceConfig.setServiceThreads(threadSlider.threads());
         if (client != null) client.setScreen(parent);
+    }
+
+    private static final class ThreadSlider extends SliderWidget {
+        private int threads;
+        ThreadSlider(int x, int y, int width, int height, int initial) {
+            super(x, y, width, height, Text.empty(), (double)(initial - 1) / 3.0);
+            threads = Math.max(1, Math.min(4, initial)); updateMessage();
+        }
+        int threads() { return threads; }
+        @Override protected void updateMessage() { setMessage(Text.translatable("voxymobile.config.service_threads", threads)); }
+        @Override protected void applyValue() { threads = Math.max(1, Math.min(4, 1 + (int)Math.round(value * 3.0))); }
     }
 
     private static final class LodSlider extends SliderWidget {

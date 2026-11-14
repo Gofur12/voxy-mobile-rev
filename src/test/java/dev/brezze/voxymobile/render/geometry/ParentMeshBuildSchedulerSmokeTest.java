@@ -9,6 +9,7 @@ import java.util.Arrays;
 
 public final class ParentMeshBuildSchedulerSmokeTest {
     public static void main(String[] args) throws Exception {
+        testWorkerPoolBounds();
         testLodAwarePriority();
         testAtomicSnapshot();
         testAsyncBuild();
@@ -16,6 +17,11 @@ public final class ParentMeshBuildSchedulerSmokeTest {
         testStaleResultInvalidation();
         testCloseStopsWorker();
         System.out.println("ParentMeshBuildSchedulerSmokeTest: PASS (6 cases)");
+    }
+
+    private static void testWorkerPoolBounds() {
+        try (ParentMeshBuildScheduler scheduler = new ParentMeshBuildScheduler(3)) { check(scheduler.workerCount() == 3, "configured pool size"); }
+        try (ParentMeshBuildScheduler scheduler = new ParentMeshBuildScheduler(9)) { check(scheduler.workerCount() == 4, "mobile worker cap"); }
     }
 
     private static void testLodAwarePriority() {

@@ -692,3 +692,11 @@ tasks.register('stage72SettingsPolicySmokeTest', JavaExec) {
 }
 tasks.register('stage72SmokeTest') { dependsOn tasks.named('stage72SettingsPolicySmokeTest') }
 check.dependsOn tasks.named('stage72SmokeTest')
+
+tasks.register('stage73ServiceThreadSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.ParentMeshBuildSchedulerSmokeTest'
+}
+tasks.register('stage73SmokeTest') { dependsOn tasks.named('stage73ServiceThreadSmokeTest') }
+check.dependsOn tasks.named('stage73SmokeTest')
