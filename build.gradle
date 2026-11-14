@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'dev.brezze'
-version = '0.1.73-stage83'
+version = '0.1.74-stage84'
 
 base { archivesName = 'VoxyMobile-Reborn' }
 
@@ -799,3 +799,13 @@ tasks.register('stage83RestoreStateSmokeTest', JavaExec) {
 }
 tasks.register('stage83SmokeTest') { dependsOn tasks.named('stage83RestoreStateSmokeTest') }
 check.dependsOn tasks.named('stage83SmokeTest')
+
+
+// Stage 84: live disk writes must progress while nearest-first cache restore is backpressured.
+tasks.register('stage84CacheWriteIsolationSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.core.PersistentSectionCacheWorkerSmokeTest'
+}
+tasks.register('stage84SmokeTest') { dependsOn tasks.named('stage84CacheWriteIsolationSmokeTest') }
+check.dependsOn tasks.named('stage84SmokeTest')
