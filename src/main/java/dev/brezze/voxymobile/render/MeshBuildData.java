@@ -86,4 +86,6 @@ public final class MeshBuildData {
     float[] vertices() { return vertices; }
     int[] indices() { return indices; }
     public boolean isEmpty() { return indices.length == 0; }
+    /** Vertex plus index payload size submitted to GLES buffers. */
+    public long byteSize() { return (long) vertices.length * Float.BYTES + (long) indices.length * Integer.BYTES; }
 }

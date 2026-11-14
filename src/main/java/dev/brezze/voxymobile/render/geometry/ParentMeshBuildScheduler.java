@@ -4,6 +4,7 @@ import dev.brezze.voxymobile.core.lod.NodeDataSnapshot;
 import dev.brezze.voxymobile.core.lod.ParentLodMeshBuilder;
 import dev.brezze.voxymobile.core.lod.ParentVoxelAggregator;
 import dev.brezze.voxymobile.core.lod.ParentLodMeshData;
+import dev.brezze.voxymobile.render.streaming.QueuePriorityPolicy;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -16,6 +17,7 @@ public final class ParentMeshBuildScheduler implements AutoCloseable {
     private static final int MAX_PENDING = 48;
     private static final int MAX_COMPLETED = 48;
     private final Object lock = new Object();
+    private final QueuePriorityPolicy priorityPolicy = new QueuePriorityPolicy();
     private final ArrayList<Job> pending = new ArrayList<>();
     private final Map<ParentGeometryKey, Job> latestPending = new HashMap<>();
     private final Map<ParentGeometryKey, RequestState> requested = new HashMap<>();
@@ -42,7 +44,7 @@ public final class ParentMeshBuildScheduler implements AutoCloseable {
                 Job queued = latestPending.get(key);
                 if (queued != null && queued.distanceSquared != distanceSquared) {
                     pending.remove(queued);
-                    Job refreshed = new Job(key, snapshot, distanceSquared, sequence++);
+                    Job refreshed = new Job(key, snapshot, distanceSquared, sequence++, queued.enqueuedNanos);
                     pending.add(refreshed);
                     latestPending.put(key, refreshed);
                     lock.notifyAll();
@@ -52,10 +54,10 @@ public final class ParentMeshBuildScheduler implements AutoCloseable {
             Job old = latestPending.remove(key);
             if (old != null) pending.remove(old);
             requested.put(key, new RequestState(snapshot.contentRevision()));
-            Job job = new Job(key, snapshot, distanceSquared, sequence++);
+            Job job = new Job(key, snapshot, distanceSquared, sequence++, System.nanoTime());
             if (pending.size() >= MAX_PENDING) {
-                Job farthest = pending.stream().max(ORDER).orElse(null);
-                if (farthest == null || ORDER.compare(job, farthest) >= 0) {
+                Job farthest = worstPending(System.nanoTime());
+                if (farthest == null || effective(job, System.nanoTime()) >= effective(farthest, System.nanoTime())) {
                     requested.remove(key);
                     return false;
                 }
@@ -111,7 +113,7 @@ public final class ParentMeshBuildScheduler implements AutoCloseable {
                     try { lock.wait(); } catch (InterruptedException ignored) { if (closed) return; }
                 }
                 if (closed) return;
-                job = pending.stream().min(ORDER).orElse(null);
+                job = bestPending(System.nanoTime());
                 if (job == null) continue;
                 pending.remove(job);
                 latestPending.remove(job.key, job);
@@ -154,8 +156,29 @@ public final class ParentMeshBuildScheduler implements AutoCloseable {
         catch (InterruptedException e) { Thread.currentThread().interrupt(); }
     }
 
-    private static final Comparator<Job> ORDER = Comparator.comparingDouble((Job j) -> j.distanceSquared)
-            .thenComparingLong(j -> j.sequence);
+    private Job bestPending(long now) {
+        Job best = null; double bestScore = Double.MAX_VALUE;
+        for (Job candidate : pending) {
+            double score = effective(candidate, now);
+            if (best == null || score < bestScore || (score == bestScore && candidate.sequence < best.sequence)) {
+                best = candidate; bestScore = score;
+            }
+        }
+        return best;
+    }
+    private Job worstPending(long now) {
+        Job worst = null; double worstScore = -1.0;
+        for (Job candidate : pending) {
+            double score = effective(candidate, now);
+            if (worst == null || score > worstScore || (score == worstScore && candidate.sequence > worst.sequence)) {
+                worst = candidate; worstScore = score;
+            }
+        }
+        return worst;
+    }
+    private double effective(Job job, long now) {
+        return priorityPolicy.effectivePriority(job.distanceSquared, job.enqueuedNanos, now);
+    }
     private record RequestState(long revision) {}
-    private record Job(ParentGeometryKey key, NodeDataSnapshot snapshot, double distanceSquared, long sequence) {}
+    private record Job(ParentGeometryKey key, NodeDataSnapshot snapshot, double distanceSquared, long sequence, long enqueuedNanos) {}
 }

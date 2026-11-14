@@ -1,12 +1,2 @@
-pluginManagement {
-    repositories {
-        maven { url = 'https://maven.fabricmc.net/' }
-        gradlePluginPortal()
-        mavenCentral()
-    }
-}
-
-// Fabric Loom creates a project-level LoomLocalRemappedMods repository.
-// Do not enforce settings-only dependency repositories, because that makes
-// Loom fail while applying its plugin before any task can run.
+pluginManagement { repositories { maven { url = 'https://maven.fabricmc.net/' }; gradlePluginPortal(); mavenCentral() } }
 rootProject.name = 'VoxyMobile-Reborn'

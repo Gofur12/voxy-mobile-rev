@@ -3,7 +3,7 @@
   "id": "voxymobile",
   "version": "${version}",
   "name": "Voxy Mobile Reborn",
-  "description": "Mobile-oriented hierarchical LOD renderer for Minecraft 1.20.1. Stage 18 adds distance-based parent/child selection with hysteresis.",
+  "description": "Mobile-oriented hierarchical LOD renderer for Minecraft 1.20.1 with optional GLES seam-bound debug overlay (Stage 52).",
   "authors": [
     "Brezze"
   ],

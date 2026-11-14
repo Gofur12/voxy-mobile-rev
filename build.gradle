@@ -3,14 +3,11 @@ plugins {
 }
 
 group = 'dev.brezze'
-version = '0.1.11-stage20.2'
+version = '0.1.47-stage57'
 
 base { archivesName = 'VoxyMobile-Reborn' }
 
-repositories {
-    maven { url = 'https://maven.fabricmc.net/' }
-    mavenCentral()
-}
+repositories { maven { url = 'https://maven.fabricmc.net/' }; mavenCentral() }
 
 dependencies {
     minecraft 'com.mojang:minecraft:1.20.1'
@@ -198,3 +195,371 @@ tasks.register('stage20PredictiveStreamingSmokeTest', JavaExec) {
 }
 tasks.register('stage20SmokeTest') { dependsOn tasks.named('stage20PredictiveStreamingSmokeTest') }
 check.dependsOn tasks.named('stage20SmokeTest')
+
+
+// Stage 21: frustum- and conservative-occlusion-aware leaf/parent streaming priorities.
+tasks.register('stage21VisibilityStreamingSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.streaming.VisibilityAwareStreamingControllerSmokeTest'
+}
+tasks.register('stage21SmokeTest') { dependsOn tasks.named('stage21VisibilityStreamingSmokeTest') }
+check.dependsOn tasks.named('stage21SmokeTest')
+
+
+// Stage 22: bounded queue priority aging for leaf and parent mesh jobs.
+tasks.register('stage22QueueIntelligenceSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.streaming.QueuePriorityPolicySmokeTest'
+}
+tasks.register('stage22SmokeTest') { dependsOn tasks.named('stage22QueueIntelligenceSmokeTest') }
+check.dependsOn tasks.named('stage22SmokeTest')
+
+
+// Stage 23: hysteretic GPU memory budget and mesh eviction lifecycle policy.
+tasks.register('stage23GpuMemoryBudgetSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.GpuMemoryBudgetControllerSmokeTest'
+}
+tasks.register('stage23SmokeTest') { dependsOn tasks.named('stage23GpuMemoryBudgetSmokeTest') }
+check.dependsOn tasks.named('stage23SmokeTest')
+
+
+// Stage 24: shared per-frame byte budget for leaf and parent GLES mesh uploads.
+tasks.register('stage24GpuUploadBudgetSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.GpuUploadBudgetControllerSmokeTest'
+}
+tasks.register('stage24SmokeTest') { dependsOn tasks.named('stage24GpuUploadBudgetSmokeTest') }
+check.dependsOn tasks.named('stage24SmokeTest')
+
+
+// Stage 25: runtime activation and renderer health diagnostics.
+tasks.register('stage25RuntimeDiagnosticsSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.diagnostics.RuntimeDiagnosticsSmokeTest'
+}
+tasks.register('stage25SmokeTest') { dependsOn tasks.named('stage25RuntimeDiagnosticsSmokeTest') }
+check.dependsOn tasks.named('stage25SmokeTest')
+
+
+// Stage 26: distinguish GPU-resident meshes from actual draw submissions.
+tasks.register('stage26RenderDiagnosticsSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.diagnostics.RuntimeDiagnosticsSmokeTest'
+}
+tasks.register('stage26SmokeTest') { dependsOn tasks.named('stage26RenderDiagnosticsSmokeTest') }
+check.dependsOn tasks.named('stage26SmokeTest')
+
+
+// Stage 27: camera-relative bounds are shared by leaf/parent draw-time frustum tests.
+tasks.register('stage27CameraSpaceSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.culling.CameraRelativeAabbSmokeTest'
+}
+tasks.register('stage27SmokeTest') { dependsOn tasks.named('stage27CameraSpaceSmokeTest') }
+check.dependsOn tasks.named('stage27SmokeTest')
+
+
+// Stage 28: explain the terrain draw decision path per frame.
+tasks.register('stage28RenderAuditSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.RenderFrameAuditSmokeTest'
+}
+tasks.register('stage28SmokeTest') { dependsOn tasks.named('stage28RenderAuditSmokeTest') }
+check.dependsOn tasks.named('stage28SmokeTest')
+
+// Stage 29: conservative neighbor LOD constraints to limit abrupt terrain seams.
+tasks.register('stage29LodSeamSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.core.lod.LodSeamPolicySmokeTest'
+}
+tasks.register('stage29SmokeTest') { dependsOn tasks.named('stage29LodSeamSmokeTest') }
+check.dependsOn tasks.named('stage29SmokeTest')
+
+
+
+// Stage 30: zipper triangulation for unequal-resolution terrain boundaries.
+tasks.register('stage30LodSeamStitchSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.core.mesh.LodSeamStitcherSmokeTest'
+}
+tasks.register('stage30SmokeTest') { dependsOn tasks.named('stage30LodSeamStitchSmokeTest') }
+check.dependsOn tasks.named('stage30SmokeTest')
+
+
+// Stage 31: pack CPU seam patches into the exact XYZ+RGBA/index layout used by GLES meshes.
+tasks.register('stage31SeamPatchPayloadSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.LodSeamPatchDataSmokeTest'
+}
+tasks.register('stage31SmokeTest') { dependsOn tasks.named('stage31SeamPatchPayloadSmokeTest') }
+check.dependsOn tasks.named('stage31SmokeTest')
+
+
+// Stage 32: extract ordered boundary edges from the renderer's packed CPU mesh layout.
+tasks.register('stage32MeshBoundaryExtractionSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.MeshBoundaryExtractorSmokeTest'
+}
+tasks.register('stage32SmokeTest') { dependsOn tasks.named('stage32MeshBoundaryExtractionSmokeTest') }
+check.dependsOn tasks.named('stage32SmokeTest')
+
+
+// Stage 33: automatically extract two mesh boundaries and build a zipper seam payload.
+tasks.register('stage33AutomaticSeamGenerationSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.LodSeamPatchGeneratorSmokeTest'
+}
+tasks.register('stage33SmokeTest') { dependsOn tasks.named('stage33AutomaticSeamGenerationSmokeTest') }
+check.dependsOn tasks.named('stage33SmokeTest')
+
+// Stage 34: detect actual shared edges between LOD regions before seam generation.
+tasks.register('stage34LodNeighborDetectionSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.LodNeighborDetectorSmokeTest'
+}
+tasks.register('stage34SmokeTest') { dependsOn tasks.named('stage34LodNeighborDetectionSmokeTest') }
+check.dependsOn tasks.named('stage34SmokeTest')
+
+
+// Stage 35: batch neighbor candidates from an explicitly supplied active LOD selection.
+tasks.register('stage35LodNeighborBatchSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.LodNeighborBatchSmokeTest'
+}
+tasks.register('stage35SmokeTest') { dependsOn tasks.named('stage35LodNeighborBatchSmokeTest') }
+check.dependsOn tasks.named('stage35SmokeTest')
+
+
+// Stage 36: bridge the live hierarchical draw selection into a bounded, 3D-aware neighbor batch.
+tasks.register('stage36LiveSelectionNeighborBridgeSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.LodSelectionNeighborBridgeSmokeTest'
+}
+tasks.register('stage36SmokeTest') { dependsOn tasks.named('stage36LiveSelectionNeighborBridgeSmokeTest') }
+check.dependsOn tasks.named('stage36SmokeTest')
+
+
+tasks.register('stage37MeshPlaneBoundaryExtractionSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.MeshPlaneBoundaryExtractorSmokeTest'
+}
+tasks.register('stage37SmokeTest') { dependsOn tasks.named('stage37MeshPlaneBoundaryExtractionSmokeTest') }
+check.dependsOn tasks.named('stage37SmokeTest')
+
+// Stage 38: deterministic CPU stitching of unordered terrain boundary segments.
+tasks.register('stage38BoundaryContourStitchingSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.BoundaryContourStitcherSmokeTest'
+}
+tasks.register('stage38SmokeTest') { dependsOn tasks.named('stage38BoundaryContourStitchingSmokeTest') }
+check.dependsOn tasks.named('stage38SmokeTest')
+
+
+tasks.register('stage39ContourSurfaceTriangulationSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.ContourSurfaceTriangulatorSmokeTest'
+}
+tasks.register('stage39SmokeTest') { dependsOn tasks.named('stage39ContourSurfaceTriangulationSmokeTest') }
+check.dependsOn tasks.named('stage39SmokeTest')
+
+
+// Stage 40: combine closed contours and triangulation into an indexed XYZ+RGBA seam mesh.
+tasks.register('stage40LodSeamSurfaceMeshSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.LodSeamSurfaceMeshSmokeTest'
+}
+tasks.register('stage40SmokeTest') { dependsOn tasks.named('stage40LodSeamSurfaceMeshSmokeTest') }
+check.dependsOn tasks.named('stage40SmokeTest')
+
+
+// Stage 41: immutable seam upload payload and bounded render-thread handoff queue.
+tasks.register('stage41LodSeamUploadQueueSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.LodSeamUploadQueueSmokeTest'
+}
+tasks.register('stage41SmokeTest') { dependsOn tasks.named('stage41LodSeamUploadQueueSmokeTest') }
+check.dependsOn tasks.named('stage41SmokeTest')
+
+
+// Stage 42: GLES seam upload path contract smoke test.
+tasks.register('stage42LodSeamGpuUploadContractSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.LodSeamUploadQueueSmokeTest'
+}
+tasks.register('stage42SmokeTest') { dependsOn tasks.named('stage42LodSeamGpuUploadContractSmokeTest') }
+check.dependsOn tasks.named('stage42SmokeTest')
+
+
+// Stage 43: live selected-neighbor boundary extraction and CPU seam payload production.
+tasks.register('stage43LodSeamLiveProducerSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.LodSeamLiveProducerSmokeTest'
+}
+tasks.register('stage43SmokeTest') { dependsOn tasks.named('stage43LodSeamLiveProducerSmokeTest') }
+check.dependsOn tasks.named('stage43SmokeTest')
+
+
+// Stage 44: seam world bounds, camera-relative frustum culling, and per-frame seam draw diagnostics.
+tasks.register('stage44SeamVisibilitySmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.LodSeamBoundsSmokeTest'
+}
+tasks.register('stage44SmokeTest') { dependsOn tasks.named('stage44SeamVisibilitySmokeTest') }
+check.dependsOn tasks.named('stage44SmokeTest')
+
+
+// Stage 45: preserve source terrain colors and filter degenerate/inconsistently wound zipper faces.
+tasks.register('stage45SeamGeometryQualitySmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.LodSeamLiveProducerSmokeTest'
+}
+tasks.register('stage45SmokeTest') { dependsOn tasks.named('stage45SeamGeometryQualitySmokeTest') }
+check.dependsOn tasks.named('stage45SmokeTest')
+
+
+// Stage 46: stable per-pair source revisions and duplicate seam upload suppression.
+tasks.register('stage46LodSeamRevisionTrackerSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.LodSeamRevisionTrackerSmokeTest'
+}
+tasks.register('stage46SmokeTest') {
+    dependsOn tasks.named('stage46LodSeamRevisionTrackerSmokeTest')
+    dependsOn tasks.named('stage41LodSeamUploadQueueSmokeTest')
+}
+check.dependsOn tasks.named('stage46SmokeTest')
+
+
+// Stage 47: nearest-first seam generation with a hard per-refresh CPU work cap.
+tasks.register('stage47LodSeamWorkSchedulerSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.LodSeamWorkSchedulerSmokeTest'
+}
+tasks.register('stage47SmokeTest') { dependsOn tasks.named('stage47LodSeamWorkSchedulerSmokeTest') }
+check.dependsOn tasks.named('stage47SmokeTest')
+
+
+// Stage 48: bounded asynchronous CPU seam generation and render-thread result handoff.
+tasks.register('stage48LodSeamAsyncBuildQueueSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.LodSeamAsyncBuildQueueSmokeTest'
+}
+tasks.register('stage48SmokeTest') { dependsOn tasks.named('stage48LodSeamAsyncBuildQueueSmokeTest') }
+check.dependsOn tasks.named('stage48SmokeTest')
+
+
+// Stage 49: visibility/lifecycle-aware seam scheduling with duplicate suppression.
+tasks.register('stage49LodSeamSmartSchedulerSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.LodSeamSmartSchedulerSmokeTest'
+}
+tasks.register('stage49SmokeTest') { dependsOn tasks.named('stage49LodSeamSmartSchedulerSmokeTest') }
+check.dependsOn tasks.named('stage49SmokeTest')
+
+
+// Stage 50: connect visibility/revision-aware seam scheduling to the live renderer refresh path.
+tasks.register('stage50LodSeamRuntimeSchedulingSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.LodSeamRuntimeSchedulingSmokeTest'
+}
+tasks.register('stage50SmokeTest') { dependsOn tasks.named('stage50LodSeamRuntimeSchedulingSmokeTest') }
+check.dependsOn tasks.named('stage50SmokeTest')
+
+
+// Stage 51: reject malformed seam geometry before it reaches GLES upload.
+tasks.register('stage51LodSeamGeometryValidatorSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.LodSeamGeometryValidatorSmokeTest'
+}
+tasks.register('stage51SmokeTest') { dependsOn tasks.named('stage51LodSeamGeometryValidatorSmokeTest') }
+check.dependsOn tasks.named('stage51SmokeTest')
+
+
+// Stage 52: CPU contract for the in-world seam AABB debug overlay.
+tasks.register('stage52LodSeamDebugOverlaySmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.LodSeamDebugOverlaySmokeTest'
+}
+tasks.register('stage52SmokeTest') { dependsOn tasks.named('stage52LodSeamDebugOverlaySmokeTest') }
+check.dependsOn tasks.named('stage52SmokeTest')
+
+
+tasks.register('stage53LodSeamTriangleVisualizerSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.LodSeamTriangleVisualizerSmokeTest'
+}
+tasks.register('stage53SmokeTest') { dependsOn tasks.named('stage53LodSeamTriangleVisualizerSmokeTest') }
+check.dependsOn tasks.named('stage53SmokeTest')
+
+
+// Stage 54: CPU-only seam-to-terrain boundary crack detection.
+tasks.register('stage54LodSeamCrackDetectorSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.LodSeamCrackDetectorSmokeTest'
+}
+tasks.register('stage54SmokeTest') { dependsOn tasks.named('stage54LodSeamCrackDetectorSmokeTest') }
+check.dependsOn tasks.named('stage54SmokeTest')
+
+
+// Stage 55: capture and audit boundaries from active indexed terrain mesh snapshots.
+tasks.register('stage55LodSeamLiveBoundaryAuditSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.LodSeamLiveBoundaryAuditSmokeTest'
+}
+tasks.register('stage55SmokeTest') { dependsOn tasks.named('stage55LodSeamLiveBoundaryAuditSmokeTest') }
+check.dependsOn tasks.named('stage55SmokeTest')
+
+
+// Stage 56: runtime seam pipeline counters and queue/GPU gauges.
+tasks.register('stage56LodSeamRuntimeMetricsSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.LodSeamRuntimeMetricsSmokeTest'
+}
+tasks.register('stage56SmokeTest') { dependsOn tasks.named('stage56LodSeamRuntimeMetricsSmokeTest') }
+check.dependsOn tasks.named('stage56SmokeTest')
+
+
+// Stage 57: in-world red bounds for seam candidates whose asynchronous build failed.
+tasks.register('stage57LodSeamFailureOverlaySmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.render.geometry.LodSeamFailureOverlaySmokeTest'
+}
+tasks.register('stage57SmokeTest') { dependsOn tasks.named('stage57LodSeamFailureOverlaySmokeTest') }
+check.dependsOn tasks.named('stage57SmokeTest')

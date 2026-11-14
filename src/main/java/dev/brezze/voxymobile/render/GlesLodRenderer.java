@@ -1,6 +1,7 @@
 package dev.brezze.voxymobile.render;
 
 import dev.brezze.voxymobile.core.ingest.ChunkSnapshotStore;
+import dev.brezze.voxymobile.diagnostics.RuntimeDiagnostics;
 import dev.brezze.voxymobile.core.lod.LodNode;
 import dev.brezze.voxymobile.core.lod.LodNodeTraversal;
 import dev.brezze.voxymobile.core.lod.HierarchicalLodSelector;
@@ -8,15 +9,35 @@ import dev.brezze.voxymobile.core.lod.NodeDataSnapshot;
 import dev.brezze.voxymobile.core.voxel.SectionPos;
 import dev.brezze.voxymobile.core.voxel.VoxelSection;
 import dev.brezze.voxymobile.render.culling.FrustumCuller;
+import dev.brezze.voxymobile.render.culling.CameraRelativeAabb;
 import dev.brezze.voxymobile.render.culling.SectionOcclusionCuller;
 import dev.brezze.voxymobile.render.culling.SectionVisibilityPipeline;
 import dev.brezze.voxymobile.render.streaming.AdaptiveLodStreamingController;
 import dev.brezze.voxymobile.render.streaming.PredictiveStreamingController;
+import dev.brezze.voxymobile.render.streaming.VisibilityAwareStreamingController;
 import dev.brezze.voxymobile.render.geometry.ParentGeometryCache;
+import dev.brezze.voxymobile.render.geometry.GpuMemoryBudgetController;
+import dev.brezze.voxymobile.render.geometry.GpuUploadBudgetController;
 import dev.brezze.voxymobile.render.geometry.ParentGeometryKey;
 import dev.brezze.voxymobile.render.geometry.ParentGeometryUploadQueue;
 import dev.brezze.voxymobile.render.geometry.ParentGpuMeshData;
 import dev.brezze.voxymobile.render.geometry.ParentMeshBuildScheduler;
+import dev.brezze.voxymobile.render.geometry.LodSeamGpuMeshData;
+import dev.brezze.voxymobile.render.geometry.LodSeamBounds;
+import dev.brezze.voxymobile.render.geometry.LodSeamDebugOverlay;
+import dev.brezze.voxymobile.render.geometry.LodSeamTriangleVisualizer;
+import dev.brezze.voxymobile.render.geometry.LodSeamLiveProducer;
+import dev.brezze.voxymobile.render.geometry.LodNeighborDetector;
+import dev.brezze.voxymobile.render.geometry.LodSeamGpuBuffer;
+import dev.brezze.voxymobile.render.geometry.LodSeamKey;
+import dev.brezze.voxymobile.render.geometry.LodSeamUploadQueue;
+import dev.brezze.voxymobile.render.geometry.LodSeamRevisionTracker;
+import dev.brezze.voxymobile.render.geometry.LodSeamAsyncBuildQueue;
+import dev.brezze.voxymobile.render.geometry.LodSeamSmartScheduler;
+import dev.brezze.voxymobile.render.geometry.LodSeamRuntimeMetrics;
+import dev.brezze.voxymobile.render.geometry.LodSeamFailureMarker;
+import dev.brezze.voxymobile.render.geometry.LodSeamFailureOverlay;
+import dev.brezze.voxymobile.render.geometry.LodSelectionNeighborBridge;
 import net.minecraft.client.render.Camera;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.math.Vec3d;
@@ -51,6 +72,8 @@ public final class GlesLodRenderer {
             layout(location = 0) in vec3 Position;
             layout(location = 1) in vec4 Color;
             uniform mat4 MVP;
+            // Mesh vertices are stored in absolute world coordinates. The vanilla world
+            // render matrix supplies view rotation; translate world coordinates here once.
             uniform vec3 CameraPosition;
             out vec4 vColor;
             void main() {
@@ -72,15 +95,31 @@ public final class GlesLodRenderer {
     private final SectionVisibilityPipeline visibilityPipeline = new SectionVisibilityPipeline(occlusionCuller);
     private final AdaptiveLodStreamingController streaming = new AdaptiveLodStreamingController();
     private final PredictiveStreamingController predictiveStreaming = new PredictiveStreamingController();
+    private final VisibilityAwareStreamingController visibilityStreaming = new VisibilityAwareStreamingController();
     private final HierarchicalLodSelector hierarchySelector = new HierarchicalLodSelector();
     private final Map<SectionPos, GpuMesh> meshes = new HashMap<>();
     private final Map<ParentGeometryKey, ParentGpuMesh> parentMeshes = new HashMap<>();
+    private final Map<LodSeamKey, LodSeamGpuBuffer> seamMeshes = new HashMap<>();
+    private final Map<LodSeamKey, LodSeamBounds> seamCandidateBounds = new HashMap<>();
+    private final Map<LodSeamKey, LodSeamFailureMarker> seamFailureMarkers = new HashMap<>();
+    private final Set<LodSeamKey> activeSeamKeys = new HashSet<>();
+    private final LodSeamUploadQueue seamUploadQueue = new LodSeamUploadQueue(64);
+    private final LodSeamRevisionTracker seamRevisionTracker = new LodSeamRevisionTracker();
+    private final LodSeamAsyncBuildQueue seamBuildQueue = new LodSeamAsyncBuildQueue(1, 16);
+    private final LodSeamRuntimeMetrics seamRuntimeMetrics = new LodSeamRuntimeMetrics();
+    private static final long MAX_SEAM_UPLOAD_BYTES_PER_FRAME = 512L * 1024L;
     private final ParentGeometryCache parentGeometryCache = new ParentGeometryCache(24L * 1024L * 1024L);
+    private final GpuMemoryBudgetController gpuMemoryBudget = new GpuMemoryBudgetController();
+    private final GpuUploadBudgetController gpuUploadBudget = new GpuUploadBudgetController();
+    private MeshBuildData deferredLeafUpload;
     private final ParentGeometryUploadQueue parentUploadQueue = new ParentGeometryUploadQueue(128);
     private final ParentMeshBuildScheduler parentBuildScheduler = new ParentMeshBuildScheduler();
     private long gpuBytes;
     private final Map<SectionPos, Integer> selectedLods = new HashMap<>();
     private int program;
+    private int seamDebugVao;
+    private int seamDebugVbo;
+    private boolean seamDebugOverlayEnabled;
     private int mvpLocation = -1;
     private int cameraLocation = -1;
     private boolean failed;
@@ -88,6 +127,7 @@ public final class GlesLodRenderer {
     private double cameraForwardX;
     private double cameraForwardY;
     private double cameraForwardZ = -1.0;
+    private int neighborRefreshTicks;
 
     public GlesLodRenderer(ChunkSnapshotStore store) { this.store = store; }
 
@@ -124,6 +164,9 @@ public final class GlesLodRenderer {
             }
             previousRenderNanos = frameNow;
             streaming.update(cameraPos.x, cameraPos.y, cameraPos.z, frameNow);
+            Matrix4f schedulingMvp = new Matrix4f(context.projectionMatrix())
+                    .mul(context.matrixStack().peek().getPositionMatrix());
+            FrustumCuller schedulingFrustum = FrustumCuller.from(schedulingMvp);
             int buildRequests = 0;
             for (Map.Entry<SectionPos, VoxelSection> entry : current.entrySet()) {
                 SectionPos pos = entry.getKey();
@@ -132,8 +175,11 @@ public final class GlesLodRenderer {
                 int wantedLod = chooseLod(pos, cameraPos, previousLod);
                 selectedLods.put(pos, wantedLod);
                 if (old == null || old.source != entry.getValue() || old.lodLevel != wantedLod) {
-                    boolean alreadyRequested = scheduler.hasRequest(pos, entry.getValue(), wantedLod);
-                    if (alreadyRequested || buildRequests < streaming.maxNewBuildsPerFrame()) {
+                    boolean deferredMatches = deferredLeafUpload != null
+                            && deferredLeafUpload.source() == entry.getValue()
+                            && deferredLeafUpload.lodLevel() == wantedLod;
+                    boolean alreadyRequested = deferredMatches || scheduler.hasRequest(pos, entry.getValue(), wantedLod);
+                    if (!deferredMatches && (alreadyRequested || buildRequests < streaming.maxNewBuildsPerFrame())) {
                         double cx = pos.x() * 16.0 + 8.0;
                         double cy = pos.y() * 16.0 + 8.0;
                         double cz = pos.z() * 16.0 + 8.0;
@@ -141,17 +187,32 @@ public final class GlesLodRenderer {
                         double priority = predictiveStreaming.priorityDistanceSquared(cx, cy, cz,
                                 cameraPos.x, cameraPos.y, cameraPos.z, cameraForwardX, cameraForwardY, cameraForwardZ,
                                 streaming.velocityX(), streaming.velocityY(), streaming.velocityZ(), predictedDistance);
+                        double minX = pos.x() * 16.0 - cameraPos.x;
+                        double minY = pos.y() * 16.0 - cameraPos.y;
+                        double minZ = pos.z() * 16.0 - cameraPos.z;
+                        boolean inFrustum = schedulingFrustum.isVisible((float) minX, (float) minY, (float) minZ,
+                                (float) (minX + 16.0), (float) (minY + 16.0), (float) (minZ + 16.0));
+                        boolean enclosed = occlusionCuller.isOccluded(entry.getValue(), current);
+                        priority = visibilityStreaming.sectionPriority(priority, inFrustum, enclosed);
                         if (scheduler.request(entry.getValue(), wantedLod, priority) && !alreadyRequested) buildRequests++;
                     }
                 }
             }
             occlusionCuller.retain(live);
+            gpuUploadBudget.beginFrame(gpuBytes, gpuMemoryBudget.pressureLevel(gpuBytes));
             processCompletedUploads(current);
-            processParentGeometry();
+            processParentGeometry(schedulingFrustum);
+            processCompletedSeamBuilds();
+            processSeamUploads();
+            seamRuntimeMetrics.gauges(seamBuildQueue.pendingCount(), seamBuildQueue.completedCount(),
+                    seamUploadQueue.size(), seamMeshes.size(), gpuBytes);
+            RuntimeDiagnostics.seamPipelineStatus(seamRuntimeMetrics.snapshot().toString());
             draw(context, current);
+            RuntimeDiagnostics.renderCallback(meshes.size(), parentMeshes.size());
         } catch (Throwable error) {
             // A driver-specific GLES failure should disable this optional renderer, not crash the client.
             failed = true;
+            RuntimeDiagnostics.rendererFailed(error);
             System.err.println("[VoxyMobile] GLES renderer disabled: " + error);
             error.printStackTrace();
             release();
@@ -175,6 +236,7 @@ public final class GlesLodRenderer {
         }
         mvpLocation = GL20C.glGetUniformLocation(program, "MVP");
         cameraLocation = GL20C.glGetUniformLocation(program, "CameraPosition");
+        RuntimeDiagnostics.shaderReady(program != 0 && mvpLocation >= 0 && cameraLocation >= 0);
     }
 
     private static int compile(int type, String source) {
@@ -200,10 +262,22 @@ public final class GlesLodRenderer {
     private void processCompletedUploads(Map<SectionPos, VoxelSection> current) {
         int budget = streaming.uploadsPerFrame(scheduler.completedCount());
         for (int uploaded = 0; uploaded < budget; uploaded++) {
-            MeshBuildData data = scheduler.pollCompleted();
+            MeshBuildData data;
+            if (deferredLeafUpload != null) {
+                data = deferredLeafUpload;
+                deferredLeafUpload = null;
+            } else {
+                data = scheduler.pollCompleted();
+            }
             if (data == null) break;
             VoxelSection latest = current.get(data.source().position());
-            if (latest != data.source()) continue; // stale result; a fresh request is issued next frame
+            if (latest != data.source()
+                    || selectedLods.getOrDefault(data.source().position(), data.lodLevel()) != data.lodLevel())
+                continue; // stale source/LOD; a fresh request is issued by the next scheduling pass
+            if (!data.isEmpty() && !gpuUploadBudget.tryConsume(data.byteSize())) {
+                deferredLeafUpload = data;
+                break;
+            }
             if (data.isEmpty()) {
                 GpuMesh removed = meshes.remove(data.source().position());
                 if (removed != null) { gpuBytes -= removed.byteSize; removed.delete(); }
@@ -222,7 +296,7 @@ public final class GlesLodRenderer {
     }
 
     /** Stage 17: schedule every populated parent level; CPU aggregation and meshing stay on the worker. */
-    private void processParentGeometry() {
+    private void processParentGeometry(FrustumCuller schedulingFrustum) {
         List<LodNode> nodes = store.lodTree().nodesSnapshot();
         Set<ParentGeometryKey> live = new HashSet<>();
         int parentBuildRequests = 0;
@@ -251,6 +325,13 @@ public final class GlesLodRenderer {
                     contextFreeCameraX, contextFreeCameraY, contextFreeCameraZ,
                     cameraForwardX, cameraForwardY, cameraForwardZ,
                     streaming.velocityX(), streaming.velocityY(), streaming.velocityZ(), predictedDistance);
+            double minX = node.origin().x() * 16.0 - contextFreeCameraX;
+            double minY = node.origin().y() * 16.0 - contextFreeCameraY;
+            double minZ = node.origin().z() * 16.0 - contextFreeCameraZ;
+            double span = node.spanSections() * 16.0;
+            boolean inFrustum = schedulingFrustum.isVisible((float) minX, (float) minY, (float) minZ,
+                    (float) (minX + span), (float) (minY + span), (float) (minZ + span));
+            priority = visibilityStreaming.parentPriority(priority, inFrustum);
             if (parentBuildScheduler.request(snapshot, priority) && !alreadyRequested) parentBuildRequests++;
         }
 
@@ -281,6 +362,10 @@ public final class GlesLodRenderer {
             if (data == null) break;
             LodNode node = store.lodTree().findNode(data.key().origin(), data.key().level());
             if (node == null || node.contentRevision() != data.contentRevision()) continue;
+            if (!data.isEmpty() && !gpuUploadBudget.tryConsume(data.byteSize())) {
+                parentUploadQueue.offer(data);
+                break;
+            }
             if (data.isEmpty()) {
                 ParentGpuMesh old = parentMeshes.remove(data.key());
                 if (old != null) { gpuBytes -= old.byteSize; old.delete(); }
@@ -317,15 +402,18 @@ public final class GlesLodRenderer {
         GL30C.glBindVertexArray(0);
         GL15C.glBindBuffer(GL15C.GL_ARRAY_BUFFER, 0);
         return new ParentGpuMesh(data.key(), data.contentRevision(), vao, vbo, ebo,
-                indexArray.length, data.byteSize());
+                indexArray.length, data.byteSize(), vertexArray, indexArray);
     }
 
     private double contextFreeCameraX, contextFreeCameraY, contextFreeCameraZ;
 
     /** Evicts the farthest leaf OR parent GPU allocation until the shared byte budget is met. */
     private void evictDistantMeshes(double cameraX, double cameraY, double cameraZ, SectionPos protectedPosition) {
-        long budget = streaming.gpuBudgetBytes();
-        while (gpuBytes > budget && meshes.size() + parentMeshes.size() > 1) {
+        // Hysteresis avoids repeated single-mesh evictions around the budget boundary.
+        gpuMemoryBudget.shouldEvict(gpuBytes);
+        long targetBytes = gpuMemoryBudget.evictionTargetBytes();
+        while (gpuMemoryBudget.evictionActive() && gpuBytes > targetBytes
+                && meshes.size() + parentMeshes.size() > 1) {
             SectionPos farthestLeaf = null;
             ParentGeometryKey farthestParent = null;
             double farthestDistance = -1.0;
@@ -384,11 +472,213 @@ public final class GlesLodRenderer {
         GL30C.glBindVertexArray(0);
         GL15C.glBindBuffer(GL15C.GL_ARRAY_BUFFER, 0);
         long byteSize = (long) vertexArray.length * Float.BYTES + (long) indexArray.length * Integer.BYTES;
-        return new GpuMesh(data.source(), data.lodLevel(), vao, vbo, ebo, indexArray.length, byteSize);
+        return new GpuMesh(data.source(), data.lodLevel(), vao, vbo, ebo, indexArray.length, byteSize,
+                vertexArray, indexArray);
     }
 
+
+    /** Thread-safe CPU handoff; actual GL allocation occurs on the next render callback. */
+    public boolean enqueueSeamMesh(LodSeamGpuMeshData data) {
+        return seamUploadQueue.offer(data);
+    }
+
+    private void processSeamUploads() {
+        long uploadedBytes = 0L;
+        while (uploadedBytes < MAX_SEAM_UPLOAD_BYTES_PER_FRAME) {
+            LodSeamGpuMeshData data = seamUploadQueue.poll();
+            if (data == null) break;
+            if (data.isEmpty()) continue;
+            // A newer source revision may have appeared after CPU completion but before this upload.
+            if (seamRevisionTracker.currentRevision(data.key()) != data.contentRevision()) { seamRuntimeMetrics.staleResult(); continue; }
+            LodSeamGpuBuffer old = seamMeshes.get(data.key());
+            if (old != null && old.revision() > data.contentRevision()) { seamRuntimeMetrics.staleResult(); continue; }
+            if (uploadedBytes > 0L && data.byteSize() > MAX_SEAM_UPLOAD_BYTES_PER_FRAME - uploadedBytes) {
+                seamUploadQueue.offer(data);
+                break;
+            }
+            LodSeamGpuBuffer replacement = LodSeamGpuBuffer.upload(data);
+            seamMeshes.put(data.key(), replacement);
+            if (old != null) { gpuBytes -= old.byteSize(); old.delete(); }
+            gpuBytes += replacement.byteSize();
+            uploadedBytes += replacement.byteSize();
+            seamRuntimeMetrics.uploadCompleted();
+        }
+    }
+
+    public boolean removeSeamMesh(LodSeamKey key) {
+        if (key == null) return false;
+        seamUploadQueue.remove(key);
+        seamBuildQueue.remove(key);
+        seamRevisionTracker.remove(key);
+        seamCandidateBounds.remove(key);
+        seamFailureMarkers.remove(key);
+        LodSeamGpuBuffer removed = seamMeshes.remove(key);
+        if (removed == null) return false;
+        seamRuntimeMetrics.meshRemoved();
+        gpuBytes -= removed.byteSize();
+        removed.delete();
+        return true;
+    }
+
+    /** Builds a bounded number of nearest-camera seam payloads from the active selection. */
+    private record SeamBuildCandidate(LodSeamSmartScheduler.Candidate priority,
+                                      dev.brezze.voxymobile.render.geometry.LodNeighborBatch.Candidate neighbor) {}
+
+    private void refreshLiveSeams(List<LodNodeTraversal.Selection> selections,
+                                  LodSelectionNeighborBridge.Result neighbors,
+                                  FrustumCuller frustum,
+                                  double cameraX, double cameraY, double cameraZ) {
+        Set<LodSeamKey> nextKeys = new HashSet<>();
+        Map<LodSeamKey, SeamBuildCandidate> candidatesByKey = new HashMap<>();
+        List<LodSeamSmartScheduler.Candidate> schedulingCandidates = new ArrayList<>();
+        for (dev.brezze.voxymobile.render.geometry.LodNeighborBatch.Candidate candidate
+                : neighbors.batch().candidates()) {
+            if (!candidate.requiresSeam()) continue;
+            LodNode first = selections.get(candidate.firstRegionIndex).node();
+            LodNode second = selections.get(candidate.secondRegionIndex).node();
+            LodSeamKey key = new LodSeamKey(regionId(first), regionId(second));
+            nextKeys.add(key);
+            LodNode fine = first.level() < second.level() ? first : second;
+            LodNode coarse = fine == first ? second : first;
+            CpuMeshView fineMesh = cpuMesh(fine);
+            CpuMeshView coarseMesh = cpuMesh(coarse);
+            if (fineMesh == null || coarseMesh == null) { removeSeamMesh(key); continue; }
+            long revision = seamRevisionTracker.revisionFor(key,
+                    fine.contentRevision(), coarse.contentRevision());
+            boolean visible = CameraRelativeAabb.node(first.origin(), first.spanSections(),
+                    cameraX, cameraY, cameraZ).isVisible(frustum)
+                    || CameraRelativeAabb.node(second.origin(), second.spanSections(),
+                    cameraX, cameraY, cameraZ).isVisible(frustum);
+            double distance = seamDistanceSquared(candidate, selections, cameraX, cameraY, cameraZ);
+            LodSeamSmartScheduler.Candidate priority = new LodSeamSmartScheduler.Candidate(
+                    key, distance, visible, true, revision);
+            schedulingCandidates.add(priority);
+            candidatesByKey.put(key, new SeamBuildCandidate(priority, candidate));
+        }
+        seamRuntimeMetrics.activeCandidates(schedulingCandidates.size());
+        // The exact active render frustum and current mesh revisions gate CPU work; nearest 8 only.
+        List<LodSeamSmartScheduler.Candidate> selected = LodSeamSmartScheduler.select(schedulingCandidates, 8);
+        for (LodSeamSmartScheduler.Candidate priority : selected) {
+            SeamBuildCandidate selectedWork = candidatesByKey.get(priority.key());
+            if (selectedWork == null) continue;
+            dev.brezze.voxymobile.render.geometry.LodNeighborBatch.Candidate candidate = selectedWork.neighbor();
+            LodNode first = selections.get(candidate.firstRegionIndex).node();
+            LodNode second = selections.get(candidate.secondRegionIndex).node();
+            LodSeamKey key = new LodSeamKey(regionId(first), regionId(second));
+            LodNode fine = first.level() < second.level() ? first : second;
+            LodNode coarse = fine == first ? second : first;
+            CpuMeshView fineMesh = cpuMesh(fine);
+            CpuMeshView coarseMesh = cpuMesh(coarse);
+            if (fineMesh == null || coarseMesh == null) { removeSeamMesh(key); continue; }
+            long revision = priority.revision();
+            LodSeamGpuBuffer existing = seamMeshes.get(key);
+            if (existing != null && existing.revision() == revision) continue;
+            if (seamUploadQueue.pendingRevision(key) == revision) continue;
+            LodNeighborDetector.NeighborPair edge = candidate.neighbor;
+            int planeAxis, rangeAxisB;
+            if (edge.edge == LodNeighborDetector.Edge.EAST_WEST
+                    || edge.edge == LodNeighborDetector.Edge.WEST_EAST) {
+                planeAxis = 0; rangeAxisB = 2;
+            } else {
+                planeAxis = 2; rangeAxisB = 0;
+            }
+            float minY = (float) Math.max(fine.origin().y() * 16.0, coarse.origin().y() * 16.0);
+            float maxY = (float) Math.min((fine.origin().y() + fine.spanSections()) * 16.0,
+                    (coarse.origin().y() + coarse.spanSections()) * 16.0);
+            float minB = (float) edge.overlapMin, maxB = (float) edge.overlapMax;
+            // Snapshot mesh arrays before handing work to the worker; no renderer maps or GL calls
+            // are accessed from the CPU worker.
+            float[] fineVertices = fineMesh.vertices.clone();
+            int[] fineIndices = fineMesh.indices.clone();
+            float[] coarseVertices = coarseMesh.vertices.clone();
+            int[] coarseIndices = coarseMesh.indices.clone();
+            final int pAxis = planeAxis, bAxis = rangeAxisB;
+            final float p = (float) edge.plane, y0 = minY, y1 = maxY, b0 = minB, b1 = maxB;
+            LodSeamBounds expectedBounds = pAxis == 0
+                    ? new LodSeamBounds(p - 0.06f, y0, b0, p + 0.06f, y1, b1)
+                    : new LodSeamBounds(b0, y0, p - 0.06f, b1, y1, p + 0.06f);
+            seamCandidateBounds.put(key, expectedBounds);
+            if (seamBuildQueue.submit(key, revision, () -> LodSeamLiveProducer.generate(key, revision,
+                    fineVertices, fineIndices, coarseVertices, coarseIndices,
+                    pAxis, p, 1, y0, y1, bAxis, b0, b1, 1.0e-3f, 8192))) {
+                seamFailureMarkers.remove(key);
+                seamRuntimeMetrics.buildScheduled();
+            }
+        }
+        for (LodSeamKey old : new HashSet<>(activeSeamKeys))
+            if (!nextKeys.contains(old)) removeSeamMesh(old);
+        activeSeamKeys.clear();
+        activeSeamKeys.addAll(nextKeys);
+    }
+
+    /** Transfers completed CPU results to the render-thread GPU upload queue. */
+    private void processCompletedSeamBuilds() {
+        LodSeamAsyncBuildQueue.Completed completed;
+        int handled = 0;
+        while (handled++ < 16 && (completed = seamBuildQueue.poll()) != null) {
+            if (completed.result() == null || !completed.result().generated()) {
+                seamRuntimeMetrics.buildCompleted(false);
+                LodSeamBounds bounds = seamCandidateBounds.get(completed.key());
+                if (bounds != null && seamRevisionTracker.currentRevision(completed.key()) == completed.revision()) {
+                    String reason = completed.result() == null ? "worker-exception" : completed.result().status();
+                    seamFailureMarkers.put(completed.key(), new LodSeamFailureMarker(
+                            completed.key(), completed.revision(), bounds, reason));
+                }
+                continue;
+            }
+            seamRuntimeMetrics.buildCompleted(true);
+            long currentRevision = seamRevisionTracker.currentRevision(completed.key());
+            if (currentRevision != completed.revision()) { seamRuntimeMetrics.staleResult(); continue; }
+            seamFailureMarkers.remove(completed.key());
+            seamRuntimeMetrics.uploadQueued(enqueueSeamMesh(completed.result().payload()));
+        }
+    }
+
+    private static double seamDistanceSquared(
+            dev.brezze.voxymobile.render.geometry.LodNeighborBatch.Candidate candidate,
+            List<LodNodeTraversal.Selection> selections, double cameraX, double cameraY, double cameraZ) {
+        LodNode a = selections.get(candidate.firstRegionIndex).node();
+        LodNode b = selections.get(candidate.secondRegionIndex).node();
+        double ax = (a.origin().x() + a.spanSections() * 0.5) * 16.0;
+        double ay = (a.origin().y() + a.spanSections() * 0.5) * 16.0;
+        double az = (a.origin().z() + a.spanSections() * 0.5) * 16.0;
+        double bx = (b.origin().x() + b.spanSections() * 0.5) * 16.0;
+        double by = (b.origin().y() + b.spanSections() * 0.5) * 16.0;
+        double bz = (b.origin().z() + b.spanSections() * 0.5) * 16.0;
+        double dx = (ax + bx) * 0.5 - cameraX;
+        double dy = (ay + by) * 0.5 - cameraY;
+        double dz = (az + bz) * 0.5 - cameraZ;
+        return dx * dx + dy * dy + dz * dz;
+    }
+
+    private CpuMeshView cpuMesh(LodNode node) {
+        if (node.level() == 0) {
+            GpuMesh mesh = meshes.get(node.origin());
+            return mesh == null ? null : new CpuMeshView(mesh.vertices, mesh.indices);
+        }
+        ParentGpuMesh mesh = parentMeshes.get(new ParentGeometryKey(node.origin(), node.level()));
+        if (mesh == null || mesh.revision != node.contentRevision()) return null;
+        return new CpuMeshView(mesh.vertices, mesh.indices);
+    }
+
+    private static long regionId(LodNode node) {
+        long h = 0x9E3779B97F4A7C15L;
+        h = (h ^ node.origin().x()) * 0xBF58476D1CE4E5B9L;
+        h = (h ^ node.origin().y()) * 0x94D049BB133111EBL;
+        h = (h ^ node.origin().z()) * 0x9E3779B97F4A7C15L;
+        h = (h ^ node.level()) * 0xBF58476D1CE4E5B9L;
+        return h ^ (h >>> 31);
+    }
+
+    private record CpuMeshView(float[] vertices, int[] indices) {}
+
     private void draw(WorldRenderContext context, Map<SectionPos, VoxelSection> current) {
-        if (meshes.isEmpty() && parentMeshes.isEmpty()) return;
+        if (meshes.isEmpty() && parentMeshes.isEmpty() && seamMeshes.isEmpty() && seamFailureMarkers.isEmpty()) {
+            RuntimeDiagnostics.renderAudit(0, 0, 0, 0);
+            RuntimeDiagnostics.drawStats(0, 0);
+            RuntimeDiagnostics.seamDrawStats(0, 0);
+            return;
+        }
         Camera camera = context.camera();
         Vec3d cameraPos = camera.getPos();
         contextFreeCameraX = cameraPos.x; contextFreeCameraY = cameraPos.y; contextFreeCameraZ = cameraPos.z;
@@ -416,26 +706,63 @@ public final class GlesLodRenderer {
         for (SectionVisibilityPipeline.VisibleSection visible : visibilityPipeline.collect(
                 meshes.keySet(), current, cameraPos.x, cameraPos.y, cameraPos.z,
                 frustum, SectionVisibilityPipeline.DEFAULT_MAX_DISTANCE)) visibleLeaves.add(visible.position());
-        for (LodNodeTraversal.Selection selection : LodNodeTraversal.collectByDistance(
-                store.lodTree(), hierarchySelector, cameraPos.x, cameraPos.y, cameraPos.z)) {
+        int leafDrawCount = 0;
+        int parentDrawCount = 0;
+        RenderFrameAudit audit = new RenderFrameAudit();
+        List<LodNodeTraversal.Selection> activeSelections = LodNodeTraversal.collectByDistance(
+                store.lodTree(), hierarchySelector, cameraPos.x, cameraPos.y, cameraPos.z);
+        // Rebuild every ten render frames from the exact node list consumed by this draw pass.
+        // The caps bound Android CPU work; truncation is surfaced rather than hidden.
+        if (++neighborRefreshTicks >= 10) {
+            neighborRefreshTicks = 0;
+            LodSelectionNeighborBridge.Result neighbors = LodSelectionNeighborBridge.build(
+                    activeSelections, 512, 1024);
+            refreshLiveSeams(activeSelections, neighbors, frustum, cameraPos.x, cameraPos.y, cameraPos.z);
+            RuntimeDiagnostics.neighborBatch(neighbors.batch().neighborCount(),
+                    neighbors.batch().seamCandidateCount(), neighbors.truncated());
+        }
+        for (LodNodeTraversal.Selection selection : activeSelections) {
             LodNode node = selection.node();
             SectionPos origin = node.origin();
-            float minX = origin.x() * 16.0f, minY = origin.y() * 16.0f, minZ = origin.z() * 16.0f;
-            float span = node.spanSections() * 16.0f;
-            if (!frustum.isVisible(minX, minY, minZ, minX + span, minY + span, minZ + span)) continue;
+            CameraRelativeAabb nodeBounds = CameraRelativeAabb.node(origin, node.spanSections(),
+                    cameraPos.x, cameraPos.y, cameraPos.z);
+            audit.candidate();
+            if (!nodeBounds.isVisible(frustum)) { audit.frustumRejected(); continue; }
             if (node.level() == 0) {
-                if (!visibleLeaves.contains(origin)) continue;
+                if (!visibleLeaves.contains(origin)) { audit.frustumRejected(); continue; }
                 GpuMesh mesh = meshes.get(origin);
-                if (mesh == null) continue;
+                if (mesh == null) { audit.missingMesh(); continue; }
                 GL30C.glBindVertexArray(mesh.vao);
                 GL11C.glDrawElements(GL11C.GL_TRIANGLES, mesh.indexCount, GL11C.GL_UNSIGNED_INT, 0L);
+                leafDrawCount++;
+                audit.leafDrawn();
             } else {
                 ParentGpuMesh mesh = parentMeshes.get(new ParentGeometryKey(origin, node.level()));
-                if (mesh == null || mesh.revision != node.contentRevision()) continue;
+                if (mesh == null) { audit.missingMesh(); continue; }
+                if (mesh.revision != node.contentRevision()) { audit.staleParent(); continue; }
                 GL30C.glBindVertexArray(mesh.vao);
                 GL11C.glDrawElements(GL11C.GL_TRIANGLES, mesh.indexCount, GL11C.GL_UNSIGNED_INT, 0L);
+                parentDrawCount++;
+                audit.parentDrawn();
             }
         }
+        int seamDrawCount = 0;
+        int seamFrustumRejected = 0;
+        for (LodSeamGpuBuffer seam : seamMeshes.values()) {
+            if (seam.drawIfVisible(frustum, cameraPos.x, cameraPos.y, cameraPos.z)) seamDrawCount++;
+            else seamFrustumRejected++;
+        }
+        RuntimeDiagnostics.seamDrawStats(seamDrawCount, seamFrustumRejected);
+        if (seamDebugOverlayEnabled && (!seamMeshes.isEmpty() || !seamFailureMarkers.isEmpty())) {
+            // Debug vertices are already camera-relative; neutralize the shader's world-position subtraction.
+            GL20C.glUniform3f(cameraLocation, 0.0f, 0.0f, 0.0f);
+            if (!seamMeshes.isEmpty()) drawSeamDebugOverlay(cameraPos.x, cameraPos.y, cameraPos.z);
+            if (!seamFailureMarkers.isEmpty()) drawSeamFailureOverlay(cameraPos.x, cameraPos.y, cameraPos.z);
+            GL20C.glUniform3f(cameraLocation, (float) cameraPos.x, (float) cameraPos.y, (float) cameraPos.z);
+        }
+        RuntimeDiagnostics.renderAudit(audit.candidates(), audit.frustumRejectedCount(),
+                audit.missingMeshes(), audit.staleParents());
+        RuntimeDiagnostics.drawStats(leafDrawCount, parentDrawCount);
         GL30C.glBindVertexArray(previousVao);
         GL20C.glUseProgram(previousProgram);
         GL11C.glDepthMask(previousDepthMask);
@@ -444,13 +771,104 @@ public final class GlesLodRenderer {
         if (blendEnabled) GL11C.glEnable(GL11C.GL_BLEND); else GL11C.glDisable(GL11C.GL_BLEND);
     }
 
+    /** Enables/disables the in-world orange AABB wireframe for uploaded seam meshes. */
+    public void setSeamDebugOverlayEnabled(boolean enabled) { this.seamDebugOverlayEnabled = enabled; }
+    public boolean isSeamDebugOverlayEnabled() { return seamDebugOverlayEnabled; }
+
+    private void drawSeamDebugOverlay(double cameraX, double cameraY, double cameraZ) {
+        List<dev.brezze.voxymobile.render.geometry.LodSeamBounds> bounds = new ArrayList<>();
+        for (LodSeamGpuBuffer seam : seamMeshes.values()) bounds.add(seam.bounds());
+        float[] packed = LodSeamDebugOverlay.build(bounds, cameraX, cameraY, cameraZ);
+        if (packed.length == 0) return;
+        FloatBuffer data = BufferUtils.createFloatBuffer(packed.length).put(packed);
+        data.flip();
+        if (seamDebugVao == 0) {
+            seamDebugVao = GL30C.glGenVertexArrays();
+            seamDebugVbo = GL15C.glGenBuffers();
+            GL30C.glBindVertexArray(seamDebugVao);
+            GL15C.glBindBuffer(GL15C.GL_ARRAY_BUFFER, seamDebugVbo);
+            int stride = LodSeamDebugOverlay.FLOATS_PER_VERTEX * Float.BYTES;
+            GL20C.glEnableVertexAttribArray(0);
+            GL20C.glVertexAttribPointer(0, 3, GL11C.GL_FLOAT, false, stride, 0L);
+            GL20C.glEnableVertexAttribArray(1);
+            GL20C.glVertexAttribPointer(1, 4, GL11C.GL_FLOAT, false, stride, 3L * Float.BYTES);
+        } else {
+            GL30C.glBindVertexArray(seamDebugVao);
+            GL15C.glBindBuffer(GL15C.GL_ARRAY_BUFFER, seamDebugVbo);
+        }
+        GL15C.glBufferData(GL15C.GL_ARRAY_BUFFER, data, GL15C.GL_DYNAMIC_DRAW);
+        GL11C.glDrawArrays(GL11C.GL_LINES, 0, packed.length / LodSeamDebugOverlay.FLOATS_PER_VERTEX);
+
+        List<float[]> triangleMeshes = new ArrayList<>();
+        for (LodSeamGpuBuffer seam : seamMeshes.values()) triangleMeshes.add(seam.copyDebugVertices());
+        float[] triangles = LodSeamTriangleVisualizer.combine(triangleMeshes);
+        if (triangles.length == 0) return;
+        for (int i = 0; i < triangles.length; i += LodSeamTriangleVisualizer.FLOATS_PER_VERTEX) {
+            triangles[i] -= (float) cameraX;
+            triangles[i + 1] -= (float) cameraY;
+            triangles[i + 2] -= (float) cameraZ;
+        }
+        FloatBuffer triangleData = BufferUtils.createFloatBuffer(triangles.length).put(triangles);
+        triangleData.flip();
+        GL30C.glBindVertexArray(seamDebugVao);
+        GL15C.glBindBuffer(GL15C.GL_ARRAY_BUFFER, seamDebugVbo);
+        GL15C.glBufferData(GL15C.GL_ARRAY_BUFFER, triangleData, GL15C.GL_DYNAMIC_DRAW);
+        GL11C.glDrawArrays(GL11C.GL_LINES, 0, triangles.length / LodSeamTriangleVisualizer.FLOATS_PER_VERTEX);
+    }
+
+
+    /** Draws failed seam candidate bounds in red while F7 diagnostics are enabled. */
+    private void drawSeamFailureOverlay(double cameraX, double cameraY, double cameraZ) {
+        float[] packed = LodSeamFailureOverlay.build(seamFailureMarkers.values(), cameraX, cameraY, cameraZ);
+        if (packed.length == 0) return;
+        FloatBuffer data = BufferUtils.createFloatBuffer(packed.length).put(packed);
+        data.flip();
+        if (seamDebugVao == 0) {
+            seamDebugVao = GL30C.glGenVertexArrays();
+            seamDebugVbo = GL15C.glGenBuffers();
+            GL30C.glBindVertexArray(seamDebugVao);
+            GL15C.glBindBuffer(GL15C.GL_ARRAY_BUFFER, seamDebugVbo);
+            int stride = LodSeamFailureOverlay.FLOATS_PER_VERTEX * Float.BYTES;
+            GL20C.glEnableVertexAttribArray(0);
+            GL20C.glVertexAttribPointer(0, 3, GL11C.GL_FLOAT, false, stride, 0L);
+            GL20C.glEnableVertexAttribArray(1);
+            GL20C.glVertexAttribPointer(1, 4, GL11C.GL_FLOAT, false, stride, 3L * Float.BYTES);
+        } else {
+            GL30C.glBindVertexArray(seamDebugVao);
+            GL15C.glBindBuffer(GL15C.GL_ARRAY_BUFFER, seamDebugVbo);
+        }
+        GL15C.glBufferData(GL15C.GL_ARRAY_BUFFER, data, GL15C.GL_DYNAMIC_DRAW);
+        GL11C.glDrawArrays(GL11C.GL_LINES, 0, packed.length / LodSeamFailureOverlay.FLOATS_PER_VERTEX);
+    }
+
+    public boolean isFailed() { return failed; }
+    public int leafMeshCount() { return meshes.size(); }
+    public int parentMeshCount() { return parentMeshes.size(); }
+    public long gpuBytesAllocated() { return gpuBytes; }
+    public int seamFailureMarkerCount() { return seamFailureMarkers.size(); }
+    public int gpuMemoryPressureLevel() { return gpuMemoryBudget.pressureLevel(gpuBytes); }
+    public long gpuUploadBytesThisFrame() { return gpuUploadBudget.uploadedBytesThisFrame(); }
+
     public void release() {
         for (GpuMesh mesh : meshes.values()) mesh.delete();
         meshes.clear();
         for (ParentGpuMesh mesh : parentMeshes.values()) mesh.delete();
         parentMeshes.clear();
+        for (LodSeamGpuBuffer seam : seamMeshes.values()) seam.delete();
+        seamMeshes.clear();
+        if (seamDebugVao != 0) { GL30C.glDeleteVertexArrays(seamDebugVao); seamDebugVao = 0; }
+        if (seamDebugVbo != 0) { GL15C.glDeleteBuffers(seamDebugVbo); seamDebugVbo = 0; }
+        seamDebugOverlayEnabled = false;
+        activeSeamKeys.clear();
+        seamCandidateBounds.clear();
+        seamFailureMarkers.clear();
+        seamUploadQueue.clear();
+        seamBuildQueue.close();
+        seamRevisionTracker.clear();
+        RuntimeDiagnostics.seamDrawStats(0, 0);
         parentGeometryCache.clear();
         parentUploadQueue.clear();
+        deferredLeafUpload = null;
         parentBuildScheduler.close();
         gpuBytes = 0L;
         selectedLods.clear();
@@ -467,9 +885,13 @@ public final class GlesLodRenderer {
         final int lodLevel;
         final int vao, vbo, ebo, indexCount;
         final long byteSize;
-        GpuMesh(VoxelSection source, int lodLevel, int vao, int vbo, int ebo, int indexCount, long byteSize) {
+        final float[] vertices;
+        final int[] indices;
+        GpuMesh(VoxelSection source, int lodLevel, int vao, int vbo, int ebo, int indexCount, long byteSize,
+                float[] vertices, int[] indices) {
             this.source = source; this.lodLevel = lodLevel;
             this.vao = vao; this.vbo = vbo; this.ebo = ebo; this.indexCount = indexCount; this.byteSize = byteSize;
+            this.vertices = vertices; this.indices = indices;
         }
         void delete() {
             GL30C.glDeleteVertexArrays(vao);
@@ -482,10 +904,13 @@ public final class GlesLodRenderer {
         final long revision;
         final int vao, vbo, ebo, indexCount;
         final long byteSize;
+        final float[] vertices;
+        final int[] indices;
         ParentGpuMesh(ParentGeometryKey key, long revision, int vao, int vbo, int ebo,
-                      int indexCount, long byteSize) {
+                      int indexCount, long byteSize, float[] vertices, int[] indices) {
             this.key = key; this.revision = revision; this.vao = vao; this.vbo = vbo;
             this.ebo = ebo; this.indexCount = indexCount; this.byteSize = byteSize;
+            this.vertices = vertices; this.indices = indices;
         }
         void delete() {
             GL30C.glDeleteVertexArrays(vao);

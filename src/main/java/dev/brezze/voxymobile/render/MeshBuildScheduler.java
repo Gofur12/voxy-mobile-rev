@@ -2,6 +2,7 @@ package dev.brezze.voxymobile.render;
 
 import dev.brezze.voxymobile.core.voxel.SectionPos;
 import dev.brezze.voxymobile.core.voxel.VoxelSection;
+import dev.brezze.voxymobile.render.streaming.QueuePriorityPolicy;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -14,6 +15,7 @@ public final class MeshBuildScheduler implements AutoCloseable {
     private static final int MAX_PENDING = 128;
     private static final int MAX_COMPLETED = 128;
     private final Object lock = new Object();
+    private final QueuePriorityPolicy priorityPolicy = new QueuePriorityPolicy();
     private final ArrayList<Job> pending = new ArrayList<>();
     private final Map<SectionPos, Job> latestPending = new HashMap<>();
     private final Map<SectionPos, Long> revisions = new HashMap<>();
@@ -42,7 +44,7 @@ public final class MeshBuildScheduler implements AutoCloseable {
                 Job queued = latestPending.get(pos);
                 if (queued != null && queued.distanceSquared != distanceSquared) {
                     pending.remove(queued);
-                    Job refreshed = new Job(section, lodLevel, distanceSquared, queued.revision, sequence++);
+                    Job refreshed = new Job(section, lodLevel, distanceSquared, queued.revision, sequence++, queued.enqueuedNanos);
                     pending.add(refreshed);
                     latestPending.put(pos, refreshed);
                     lock.notifyAll();
@@ -53,11 +55,11 @@ public final class MeshBuildScheduler implements AutoCloseable {
             revisions.put(pos, revision);
             Job previous = latestPending.remove(pos);
             if (previous != null) pending.remove(previous);
-            Job job = new Job(section, lodLevel, distanceSquared, revision, sequence++);
+            Job job = new Job(section, lodLevel, distanceSquared, revision, sequence++, System.nanoTime());
             requested.put(pos, new RequestState(section, lodLevel, revision));
             if (pending.size() >= MAX_PENDING) {
-                Job farthest = pending.stream().max(ORDER).orElse(null);
-                if (farthest == null || ORDER.compare(job, farthest) >= 0) {
+                Job farthest = worstPending(System.nanoTime());
+                if (farthest == null || effective(job, System.nanoTime()) >= effective(farthest, System.nanoTime())) {
                     requested.remove(pos);
                     lock.notifyAll();
                     return false;
@@ -115,7 +117,7 @@ public final class MeshBuildScheduler implements AutoCloseable {
                     try { lock.wait(); } catch (InterruptedException ignored) { if (closed) return; }
                 }
                 if (closed) return;
-                job = pending.stream().min(ORDER).orElse(null);
+                job = bestPending(System.nanoTime());
                 if (job == null) continue;
                 pending.remove(job);
                 latestPending.remove(job.section.position(), job);
@@ -161,9 +163,33 @@ public final class MeshBuildScheduler implements AutoCloseable {
         catch (InterruptedException e) { Thread.currentThread().interrupt(); }
     }
 
-    private static final Comparator<Job> ORDER = Comparator
-            .comparingDouble((Job job) -> job.distanceSquared)
-            .thenComparingLong(job -> job.sequence);
+    private Job bestPending(long now) {
+        Job best = null;
+        double bestScore = Double.MAX_VALUE;
+        for (Job candidate : pending) {
+            double score = effective(candidate, now);
+            if (best == null || score < bestScore || (score == bestScore && candidate.sequence < best.sequence)) {
+                best = candidate; bestScore = score;
+            }
+        }
+        return best;
+    }
+
+    private Job worstPending(long now) {
+        Job worst = null;
+        double worstScore = -1.0;
+        for (Job candidate : pending) {
+            double score = effective(candidate, now);
+            if (worst == null || score > worstScore || (score == worstScore && candidate.sequence > worst.sequence)) {
+                worst = candidate; worstScore = score;
+            }
+        }
+        return worst;
+    }
+
+    private double effective(Job job, long now) {
+        return priorityPolicy.effectivePriority(job.distanceSquared, job.enqueuedNanos, now);
+    }
 
     private static final class Completed {
         final MeshBuildData data;
@@ -184,10 +210,10 @@ public final class MeshBuildScheduler implements AutoCloseable {
         final VoxelSection section;
         final int lodLevel;
         final double distanceSquared;
-        final long revision, sequence;
-        Job(VoxelSection section, int lodLevel, double distanceSquared, long revision, long sequence) {
+        final long revision, sequence, enqueuedNanos;
+        Job(VoxelSection section, int lodLevel, double distanceSquared, long revision, long sequence, long enqueuedNanos) {
             this.section = section; this.lodLevel = lodLevel; this.distanceSquared = distanceSquared;
-            this.revision = revision; this.sequence = sequence;
+            this.revision = revision; this.sequence = sequence; this.enqueuedNanos = enqueuedNanos;
         }
     }
 }

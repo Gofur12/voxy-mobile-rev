@@ -17,11 +17,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.6'
-      - name: Build mod and run Stage 11-20 smoke tests (Stage 20.2 API fix)
-        run: gradle build stage11SmokeTest stage12SmokeTest stage13SmokeTest stage14SmokeTest stage15SmokeTest stage16SmokeTest stage17SmokeTest stage18SmokeTest stage19SmokeTest stage20SmokeTest --no-daemon
+      - name: Build mod and run Stage 11-57 smoke tests
+        run: gradle build stage11SmokeTest stage12SmokeTest stage13SmokeTest stage14SmokeTest stage15SmokeTest stage16SmokeTest stage17SmokeTest stage18SmokeTest stage19SmokeTest stage20SmokeTest stage21SmokeTest stage22SmokeTest stage23SmokeTest stage24SmokeTest stage25SmokeTest stage26SmokeTest stage27SmokeTest stage28SmokeTest stage29SmokeTest stage30SmokeTest stage31SmokeTest stage32SmokeTest stage33SmokeTest stage34SmokeTest stage35SmokeTest stage36SmokeTest stage37SmokeTest stage38SmokeTest stage39SmokeTest stage40SmokeTest stage41SmokeTest stage42SmokeTest stage43SmokeTest stage44SmokeTest stage45SmokeTest stage46SmokeTest stage47SmokeTest stage48SmokeTest stage49SmokeTest stage50SmokeTest stage51SmokeTest stage52SmokeTest stage53SmokeTest stage54SmokeTest stage55SmokeTest stage56SmokeTest stage57SmokeTest --no-daemon
       - uses: actions/upload-artifact@v4
         with:
-          name: VoxyMobile-Reborn-Stage20.2
+          name: VoxyMobile-Reborn-Stage57
           path: |
             build/libs/*.jar
             !build/libs/*-sources.jar
