@@ -140,6 +140,11 @@ public final class GlesLodRenderer {
     }
 
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
+    public void setGpuMemoryBudgetMb(int megabytes) {
+        int normalized = dev.brezze.voxymobile.core.config.GpuMemoryBudgetPolicy.normalize(megabytes);
+        gpuMemoryBudget.setBudgetBytes((long) normalized * 1024L * 1024L);
+    }
+    public int gpuMemoryBudgetMb() { return (int) (gpuMemoryBudget.budgetBytes() / (1024L * 1024L)); }
     public boolean isEnabled() { return enabled; }
 
     public void render(WorldRenderContext context) {
@@ -220,6 +225,7 @@ public final class GlesLodRenderer {
             processParentGeometry(schedulingFrustum);
             processCompletedSeamBuilds();
             processSeamUploads();
+            evictDistantMeshes(contextFreeCameraX, contextFreeCameraY, contextFreeCameraZ, null);
             seamRuntimeMetrics.gauges(seamBuildQueue.pendingCount(), seamBuildQueue.completedCount(),
                     seamUploadQueue.size(), seamMeshes.size(), gpuBytes);
             RuntimeDiagnostics.seamPipelineStatus(seamRuntimeMetrics.snapshot().toString());

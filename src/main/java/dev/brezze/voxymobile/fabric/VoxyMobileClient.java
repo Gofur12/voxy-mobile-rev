@@ -49,6 +49,7 @@ public final class VoxyMobileClient implements ClientModInitializer {
         int lodDistance = LodDistanceConfig.load();
         RENDERER = new GlesLodRenderer(STORE, LodDistanceConfig.serviceThreads());
         RENDERER.setMaxLodDistance(lodDistance);
+        RENDERER.setGpuMemoryBudgetMb(LodDistanceConfig.gpuMemoryBudgetMb());
         masterEnabled = LodDistanceConfig.enabled();
         rendererSetting = LodDistanceConfig.rendererEnabled();
         terrainIngestionSetting = LodDistanceConfig.terrainIngestionEnabled();
@@ -219,6 +220,12 @@ public final class VoxyMobileClient implements ClientModInitializer {
         LodDistanceConfig.setTerrainIngestionEnabled(enabled);
     }
     public static boolean isTerrainIngestionEnabled() { return terrainIngestionSetting; }
+    public static void setGpuMemoryBudgetMb(int megabytes) {
+        int normalized = dev.brezze.voxymobile.core.config.GpuMemoryBudgetPolicy.normalize(megabytes);
+        LodDistanceConfig.setGpuMemoryBudgetMb(normalized);
+        RENDERER.setGpuMemoryBudgetMb(normalized);
+    }
+    public static int gpuMemoryBudgetMb() { return LodDistanceConfig.gpuMemoryBudgetMb(); }
     public static void setSeamDebugOverlayEnabled(boolean enabled) {
         LodDistanceConfig.setSeamDebugOverlayEnabled(enabled);
         RENDERER.setSeamDebugOverlayEnabled(enabled);

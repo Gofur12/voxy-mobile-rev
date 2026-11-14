@@ -5,7 +5,7 @@ public final class GpuMemoryBudgetController {
     public static final long DEFAULT_BUDGET_BYTES = 64L * 1024L * 1024L;
     private static final double EVICTION_START_RATIO = 0.90;
     private static final double EVICTION_TARGET_RATIO = 0.78;
-    private final long budgetBytes;
+    private long budgetBytes;
     private boolean evictionActive;
 
     public GpuMemoryBudgetController() { this(DEFAULT_BUDGET_BYTES); }
@@ -24,8 +24,12 @@ public final class GpuMemoryBudgetController {
     }
 
     /** Target used while eviction is active; leaves headroom for uploads arriving next frame. */
-    public long evictionTargetBytes() { return threshold(EVICTION_TARGET_RATIO); }
-    public long budgetBytes() { return budgetBytes; }
+    public synchronized long evictionTargetBytes() { return threshold(EVICTION_TARGET_RATIO); }
+    public synchronized long budgetBytes() { return budgetBytes; }
+    public synchronized void setBudgetBytes(long value) {
+        if (value <= 0) throw new IllegalArgumentException("budgetBytes must be positive");
+        budgetBytes = value;
+    }
     public synchronized boolean evictionActive() { return evictionActive; }
 
     /** Returns a bounded pressure level for diagnostics and future adaptive upload policies. */

@@ -20,12 +20,14 @@ public final class LodDistanceConfig {
     private static final String RENDERER_KEY = "rendererEnabled";
     private static final String INGEST_KEY = "terrainIngestionEnabled";
     private static final String SEAM_DEBUG_KEY = "seamDebugOverlayEnabled";
+    private static final String GPU_MEMORY_KEY = "gpuMemoryBudgetMb";
     private static int currentDistance = DEFAULT_DISTANCE;
     private static int serviceThreads = 1;
     private static boolean enabled = true;
     private static boolean rendererEnabled = true;
     private static boolean terrainIngestionEnabled = true;
     private static boolean seamDebugOverlayEnabled = false;
+    private static int gpuMemoryBudgetMb = dev.brezze.voxymobile.core.config.GpuMemoryBudgetPolicy.DEFAULT_MB;
 
     private LodDistanceConfig() {}
 
@@ -47,9 +49,11 @@ public final class LodDistanceConfig {
         rendererEnabled = Boolean.parseBoolean(properties.getProperty(RENDERER_KEY, "true"));
         terrainIngestionEnabled = Boolean.parseBoolean(properties.getProperty(INGEST_KEY, "true"));
         seamDebugOverlayEnabled = Boolean.parseBoolean(properties.getProperty(SEAM_DEBUG_KEY, "false"));
+        gpuMemoryBudgetMb = dev.brezze.voxymobile.core.config.GpuMemoryBudgetPolicy.parse(properties.getProperty(GPU_MEMORY_KEY));
         properties.setProperty(KEY, Integer.toString(distance));
         properties.setProperty(ENABLED_KEY, Boolean.toString(enabled));
         properties.setProperty(THREADS_KEY, Integer.toString(serviceThreads));
+        properties.setProperty(GPU_MEMORY_KEY, Integer.toString(gpuMemoryBudgetMb));
         try {
             Files.createDirectories(file.getParent());
             try (Writer writer = Files.newBufferedWriter(file)) {
@@ -69,6 +73,8 @@ public final class LodDistanceConfig {
     public static boolean rendererEnabled() { return rendererEnabled; }
     public static boolean terrainIngestionEnabled() { return terrainIngestionEnabled; }
     public static boolean seamDebugOverlayEnabled() { return seamDebugOverlayEnabled; }
+    public static int gpuMemoryBudgetMb() { return gpuMemoryBudgetMb; }
+    public static void setGpuMemoryBudgetMb(int value) { gpuMemoryBudgetMb = dev.brezze.voxymobile.core.config.GpuMemoryBudgetPolicy.normalize(value); save(); }
 
     public static void setDistance(int distance) { currentDistance = LodDistancePolicy.normalize(distance); save(); }
     public static void setRendererEnabled(boolean enabled) { rendererEnabled = enabled; save(); }
@@ -92,6 +98,7 @@ public final class LodDistanceConfig {
         properties.setProperty(RENDERER_KEY, Boolean.toString(rendererEnabled));
         properties.setProperty(INGEST_KEY, Boolean.toString(terrainIngestionEnabled));
         properties.setProperty(SEAM_DEBUG_KEY, Boolean.toString(seamDebugOverlayEnabled));
+        properties.setProperty(GPU_MEMORY_KEY, Integer.toString(gpuMemoryBudgetMb));
         try {
             Files.createDirectories(file.getParent());
             try (Writer writer = Files.newBufferedWriter(file)) { properties.store(writer, "VoxyMobile Reborn client settings"); }
