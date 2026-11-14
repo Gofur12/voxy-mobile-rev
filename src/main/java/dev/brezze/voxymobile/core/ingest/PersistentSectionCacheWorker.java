@@ -14,6 +14,7 @@ public final class PersistentSectionCacheWorker implements AutoCloseable {
     private static final int MAX_LOADED_HANDOFF = 128;
     private final ArrayBlockingQueue<VoxelSection> loaded = new ArrayBlockingQueue<>(MAX_LOADED_HANDOFF);
     private final ThreadPoolExecutor io;
+    private final ThreadPoolExecutor writes;
     private volatile boolean closed;
     private volatile boolean loadComplete;
     private volatile boolean loadFinished;
@@ -22,8 +23,14 @@ public final class PersistentSectionCacheWorker implements AutoCloseable {
     public PersistentSectionCacheWorker(Path root, String worldKey, String dimensionKey) {
         cache = new PersistentSectionCache(root, worldKey, dimensionKey);
         io = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<>(16), runnable -> {
+                    Thread thread = new Thread(runnable, "VoxyMobile-TerrainCache-Load");
+                    thread.setDaemon(true);
+                    return thread;
+                }, new ThreadPoolExecutor.DiscardOldestPolicy());
+        writes = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
                 new ArrayBlockingQueue<>(256), runnable -> {
-                    Thread thread = new Thread(runnable, "VoxyMobile-TerrainCache");
+                    Thread thread = new Thread(runnable, "VoxyMobile-TerrainCache-Write");
                     thread.setDaemon(true);
                     return thread;
                 }, new ThreadPoolExecutor.DiscardOldestPolicy());
@@ -56,7 +63,7 @@ public final class PersistentSectionCacheWorker implements AutoCloseable {
 
     public void save(VoxelSection section) {
         if (section == null) return;
-        execute(() -> {
+        executeWrite(() -> {
             try { cache.save(section); }
             catch (IOException error) { System.err.println("[VoxyMobile] cache save failed: " + error.getMessage()); }
         });
@@ -64,7 +71,7 @@ public final class PersistentSectionCacheWorker implements AutoCloseable {
 
     public void remove(SectionPos position) {
         if (position == null) return;
-        execute(() -> {
+        executeWrite(() -> {
             try { cache.remove(position); }
             catch (IOException error) { System.err.println("[VoxyMobile] cache remove failed: " + error.getMessage()); }
         });
@@ -82,12 +89,21 @@ public final class PersistentSectionCacheWorker implements AutoCloseable {
         if (closed) return;
         try { io.execute(task); }
         catch (RuntimeException error) {
-            System.err.println("[VoxyMobile] cache task rejected: " + error.getMessage());
+            System.err.println("[VoxyMobile] cache load task rejected: " + error.getMessage());
+        }
+    }
+
+    private void executeWrite(Runnable task) {
+        if (closed) return;
+        try { writes.execute(task); }
+        catch (RuntimeException error) {
+            System.err.println("[VoxyMobile] cache write task rejected: " + error.getMessage());
         }
     }
 
     @Override public void close() {
         closed = true;
         io.shutdownNow();
+        writes.shutdownNow();
     }
 }
