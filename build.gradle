@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'dev.brezze'
-version = '0.1.51-stage61'
+version = '0.1.52-stage62'
 
 base { archivesName = 'VoxyMobile-Reborn' }
 
@@ -603,3 +603,13 @@ tasks.register('stage61LiveSectionSyncSmokeTest', JavaExec) {
 }
 tasks.register('stage61SmokeTest') { dependsOn tasks.named('stage61LiveSectionSyncSmokeTest') }
 check.dependsOn tasks.named('stage61SmokeTest')
+
+
+// Stage 62: retain unloaded terrain snapshots in a bounded LRU store for far-field LOD.
+tasks.register('stage62FarFieldRetentionSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.core.ChunkIngestionSmokeTest'
+}
+tasks.register('stage62SmokeTest') { dependsOn tasks.named('stage62FarFieldRetentionSmokeTest') }
+check.dependsOn tasks.named('stage62SmokeTest')

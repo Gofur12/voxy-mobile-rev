@@ -22,9 +22,24 @@ public final class ChunkIngestionSmokeTest {
         if (!store.removeSection(section.position()) || store.get(section.position()) != null
                 || !store.lodTree().isEmpty()) throw new AssertionError("empty-section removal did not prune LOD tree");
         store.put(section);
-        if (store.removeChunk(-2, 9) != 1 || !store.lodTree().isEmpty()) throw new AssertionError("chunk unload did not prune LOD tree");
+        if (store.retainChunk(-2, 9) != 1 || store.get(section.position()) == null
+                || store.lodTree().findLeaf(section.position()) == null)
+            throw new AssertionError("chunk unload retention lost far-field terrain");
+        if (store.removeChunk(-2, 9) != 1 || !store.lodTree().isEmpty())
+            throw new AssertionError("explicit chunk invalidation did not prune LOD tree");
         store.put(section);
         store.clear();
+
+        ChunkSnapshotStore bounded = new ChunkSnapshotStore(2);
+        VoxelSection a = SectionSnapshotBuilder.build(new SectionPos(0, 0, 0), ids);
+        VoxelSection b = SectionSnapshotBuilder.build(new SectionPos(1, 0, 0), ids);
+        VoxelSection c = SectionSnapshotBuilder.build(new SectionPos(2, 0, 0), ids);
+        bounded.put(a); bounded.put(b);
+        bounded.get(a.position()); // make A newer than B
+        bounded.put(c);
+        if (bounded.size() != 2 || bounded.get(a.position()) == null || bounded.get(b.position()) != null
+                || bounded.lodTree().findLeaf(b.position()) != null || bounded.lodTree().findLeaf(c.position()) == null)
+            throw new AssertionError("LRU memory cap did not evict oldest section and prune hierarchy");
         if (!store.lodTree().isEmpty()) throw new AssertionError("store clear did not clear LOD tree");
         System.out.println("ChunkIngestionSmokeTest: PASS");
     }

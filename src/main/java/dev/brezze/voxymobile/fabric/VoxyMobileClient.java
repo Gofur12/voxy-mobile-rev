@@ -41,7 +41,8 @@ public final class VoxyMobileClient implements ClientModInitializer {
         ClientChunkEvents.CHUNK_UNLOAD.register((world, chunk) -> {
             synchronized (PENDING) { PENDING.entrySet().removeIf(e -> e.getValue().chunkX == chunk.getPos().x && e.getValue().chunkZ == chunk.getPos().z); }
             RuntimeDiagnostics.chunkUnloaded();
-            STORE.removeChunk(chunk.getPos().x, chunk.getPos().z);
+            int retained = STORE.retainChunk(chunk.getPos().x, chunk.getPos().z);
+            System.out.println("[VoxyMobile] retained " + retained + " section snapshots after chunk unload");
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (TOGGLE_SEAM_DEBUG.wasPressed()) {
