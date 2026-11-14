@@ -2,6 +2,7 @@ package dev.brezze.voxymobile.core.lod;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 /** CPU-side parent/child selection with conservative parent-mesh fallback. */
 public final class LodNodeTraversal {
@@ -23,7 +24,20 @@ public final class LodNodeTraversal {
     public static List<Selection> collectByDistance(LodNodeTree tree, HierarchicalLodSelector selector,
                                                      double cameraX, double cameraY, double cameraZ,
                                                      double maxDistance) {
-        if (tree == null || selector == null) throw new IllegalArgumentException("tree and selector are required");
+        return collectByDistance(tree, selector, cameraX, cameraY, cameraZ, maxDistance,
+                LodNode::hasCurrentGeometry);
+    }
+
+    /**
+     * Distance traversal using actual render-resource availability, not only the node's
+     * logical geometry-ready flag. This lets a ready ancestor cover descendants whose GPU
+     * meshes were evicted or are not uploaded yet.
+     */
+    public static List<Selection> collectByDistance(LodNodeTree tree, HierarchicalLodSelector selector,
+                                                     double cameraX, double cameraY, double cameraZ,
+                                                     double maxDistance, Predicate<LodNode> renderable) {
+        if (tree == null || selector == null || renderable == null)
+            throw new IllegalArgumentException("tree, selector and renderable predicate are required");
         if (!(maxDistance > 0.0) || Double.isNaN(maxDistance))
             throw new IllegalArgumentException("maxDistance must be positive");
         List<LodNode> liveNodes = tree.nodesWithinDistance(cameraX, cameraY, cameraZ, maxDistance);
@@ -31,37 +45,38 @@ public final class LodNodeTraversal {
         List<Selection> output = new ArrayList<>();
         double maxDistanceSquared = maxDistance * maxDistance;
         for (LodNode root : tree.rootsWithinDistance(cameraX, cameraY, cameraZ, maxDistance))
-            selectByDistance(root, selector, cameraX, cameraY, cameraZ, maxDistanceSquared, output);
+            selectByDistance(root, selector, cameraX, cameraY, cameraZ, maxDistanceSquared, renderable, output);
         return output;
     }
 
     private static boolean selectByDistance(LodNode node, HierarchicalLodSelector selector,
                                             double cameraX, double cameraY, double cameraZ,
-                                            double maxDistanceSquared, List<Selection> output) {
+                                            double maxDistanceSquared, Predicate<LodNode> renderable,
+                                            List<Selection> output) {
         if (node == null) return true;
         if (distanceToNodeAabbSquared(node, cameraX, cameraY, cameraZ) > maxDistanceSquared) return true;
         if (node.level() > 0 && selector.prefersNode(node, cameraX, cameraY, cameraZ)
-                && node.hasCurrentGeometry()) {
+                && renderable.test(node)) {
             output.add(new Selection(node, false));
             return true;
         }
         if (node.level() == 0) {
-            if (node.hasCurrentGeometry()) output.add(new Selection(node, false));
-            return node.hasCurrentGeometry();
+            if (renderable.test(node)) output.add(new Selection(node, false));
+            return renderable.test(node);
         }
 
         List<Selection> descendants = new ArrayList<>();
         boolean complete = node.populatedChildren() > 0;
         for (int i = 0; i < 8; i++) {
             LodNode child = node.child(i);
-            if (child != null && !selectByDistance(child, selector, cameraX, cameraY, cameraZ, maxDistanceSquared, descendants))
+            if (child != null && !selectByDistance(child, selector, cameraX, cameraY, cameraZ, maxDistanceSquared, renderable, descendants))
                 complete = false;
         }
         if (complete) {
             output.addAll(descendants);
             return true;
         }
-        if (node.hasCurrentGeometry()) {
+        if (renderable.test(node)) {
             output.add(new Selection(node, true));
             return true;
         }

@@ -678,6 +678,16 @@ public final class GlesLodRenderer {
         return dx * dx + dy * dy + dz * dz;
     }
 
+    private boolean hasRenderableMesh(LodNode node) {
+        if (node == null || !node.hasCurrentGeometry()) return false;
+        if (node.level() == 0) {
+            GpuMesh mesh = meshes.get(node.origin());
+            return mesh != null && mesh.source == node.source();
+        }
+        ParentGpuMesh mesh = parentMeshes.get(new ParentGeometryKey(node.origin(), node.level()));
+        return mesh != null && mesh.revision == node.contentRevision();
+    }
+
     private CpuMeshView cpuMesh(LodNode node) {
         if (node.level() == 0) {
             GpuMesh mesh = meshes.get(node.origin());
@@ -737,7 +747,8 @@ public final class GlesLodRenderer {
         int parentDrawCount = 0;
         RenderFrameAudit audit = new RenderFrameAudit();
         List<LodNodeTraversal.Selection> activeSelections = LodNodeTraversal.collectByDistance(
-                store.lodTree(), hierarchySelector, cameraPos.x, cameraPos.y, cameraPos.z, maxLodDistance);
+                store.lodTree(), hierarchySelector, cameraPos.x, cameraPos.y, cameraPos.z, maxLodDistance,
+                this::hasRenderableMesh);
         // Rebuild every ten render frames from the exact node list consumed by this draw pass.
         // The caps bound Android CPU work; truncation is surfaced rather than hidden.
         if (++neighborRefreshTicks >= 10) {
