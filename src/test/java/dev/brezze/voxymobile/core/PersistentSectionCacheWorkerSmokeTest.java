@@ -1,5 +1,6 @@
 package dev.brezze.voxymobile.core;
 
+import dev.brezze.voxymobile.core.ingest.PersistentSectionCache;
 import dev.brezze.voxymobile.core.ingest.PersistentSectionCacheWorker;
 import dev.brezze.voxymobile.core.voxel.SectionPos;
 import dev.brezze.voxymobile.core.voxel.VoxelSection;
@@ -35,7 +36,6 @@ public final class PersistentSectionCacheWorkerSmokeTest {
                 throw new AssertionError("async cache restore failed");
             reader.close();
             // Backpressure keeps the worker-to-client handoff bounded while still restoring every entry.
-            reader.close();
             PersistentSectionCache bulkCache = new PersistentSectionCache(root, "world", "overworld");
             for (int i = 0; i < 200; i++) {
                 int[] data = new int[VoxelSection.VOLUME];
