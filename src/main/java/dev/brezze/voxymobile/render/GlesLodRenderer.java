@@ -18,6 +18,7 @@ import dev.brezze.voxymobile.render.streaming.VisibilityAwareStreamingController
 import dev.brezze.voxymobile.render.geometry.ParentGeometryCache;
 import dev.brezze.voxymobile.render.geometry.GpuMemoryBudgetController;
 import dev.brezze.voxymobile.render.geometry.GpuUploadBudgetController;
+import dev.brezze.voxymobile.render.geometry.GpuMeshEvictionPolicy;
 import dev.brezze.voxymobile.render.geometry.ParentGeometryKey;
 import dev.brezze.voxymobile.render.geometry.ParentGeometryUploadQueue;
 import dev.brezze.voxymobile.render.geometry.ParentGpuMeshData;
