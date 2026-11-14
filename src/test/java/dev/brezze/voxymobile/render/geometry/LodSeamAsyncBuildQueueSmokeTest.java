@@ -23,8 +23,10 @@ public final class LodSeamAsyncBuildQueueSmokeTest {
             CountDownLatch firstStarted = new CountDownLatch(1);
             CountDownLatch releaseFirst = new CountDownLatch(1);
             CountDownLatch secondStarted = new CountDownLatch(1);
+            CountDownLatch thirdStarted = new CountDownLatch(1);
             LodSeamKey first = new LodSeamKey(31L, 32L);
             LodSeamKey second = new LodSeamKey(41L, 42L);
+            LodSeamKey third = new LodSeamKey(51L, 52L);
             if (!queue.submit(first, 1L, () -> {
                 firstStarted.countDown();
                 if (!releaseFirst.await(2L, TimeUnit.SECONDS)) throw new AssertionError("test timeout");
@@ -35,14 +37,20 @@ public final class LodSeamAsyncBuildQueueSmokeTest {
                 secondStarted.countDown();
                 return null;
             })) throw new AssertionError("second bounded submit rejected");
+            if (!queue.submit(third, 1L, () -> {
+                thirdStarted.countDown();
+                return null;
+            })) throw new AssertionError("third bounded submit rejected");
             releaseFirst.countDown();
-            if (!secondStarted.await(2L, TimeUnit.SECONDS)) throw new AssertionError("queued work did not run");
+            if (!secondStarted.await(2L, TimeUnit.SECONDS)) throw new AssertionError("first queued work did not run");
+            if (!thirdStarted.await(2L, TimeUnit.SECONDS)) throw new AssertionError("second queued work did not run");
             until = System.nanoTime() + 2_000_000_000L;
             while (queue.pendingCount() != 0 && System.nanoTime() < until) Thread.sleep(2L);
-            if (queue.completedCount() != 1) throw new AssertionError("completed payload queue exceeded capacity");
+            if (queue.pendingCount() != 0) throw new AssertionError("pending jobs did not finish");
+            if (queue.completedCount() != 2) throw new AssertionError("completed payload queue did not stay at capacity");
             if (queue.droppedCompletionCount() != 1L) throw new AssertionError("overflow was not counted");
-            if (queue.poll() == null) throw new AssertionError("retained completion missing");
-            System.out.println("LodSeamAsyncBuildQueueSmokeTest PASS (9 assertions)");
+            if (queue.poll() == null || queue.poll() == null) throw new AssertionError("retained completions missing");
+            System.out.println("LodSeamAsyncBuildQueueSmokeTest PASS (11 assertions)");
         } finally {
             queue.close();
         }
