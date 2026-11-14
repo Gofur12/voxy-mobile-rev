@@ -9,8 +9,7 @@ public final class LongRangeLodHierarchySmokeTest {
     public static void main(String[] args) {
         LodNodeTree tree = new LodNodeTree();
         check(tree.maxLevel() == 8, "default hierarchy reaches level 8");
-        check(tree.maxLevel() * 0 + tree.findNode(new SectionPos(0, 0, 0), 8) == null,
-                "empty tree has no synthetic root");
+        check(tree.findNode(new SectionPos(0, 0, 0), 8) == null, "empty tree has no synthetic root");
 
         tree.put(section(new SectionPos(0, 0, 0)));
         tree.put(section(new SectionPos(255, 255, 255)));
