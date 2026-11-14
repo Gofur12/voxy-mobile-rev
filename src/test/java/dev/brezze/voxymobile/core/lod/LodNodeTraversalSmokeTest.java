@@ -24,6 +24,7 @@ public final class LodNodeTraversalSmokeTest {
         check(LodNodeTraversal.collectByDistance(tree, new HierarchicalLodSelector(), 1000, 1000, 1000, 4096).size() == 1,
                 "larger independent radius includes root hierarchy");
         testGpuReadyFallback();
+        testAtomicLodTransition();
         testBoundedHierarchyQuery();
         System.out.println("LodNodeTraversalSmokeTest: PASS");
     }
@@ -44,6 +45,40 @@ public final class LodNodeTraversalSmokeTest {
                 8.0, 8.0, 8.0, 4096.0, node -> node.level() > 0 && node.hasCurrentGeometry());
         check(selected.size() == 1 && selected.get(0).node() == parent && selected.get(0).fallback(),
                 "renderable parent replaces logically-ready children without GPU meshes");
+    }
+
+    private static void testAtomicLodTransition() {
+        LodNodeTree tree = new LodNodeTree(1);
+        for (int i = 0; i < 8; i++) {
+            SectionPos pos = new SectionPos(i & 1, (i >>> 1) & 1, (i >>> 2) & 1);
+            tree.put(new VoxelSection(pos, new int[]{0, 1}, filledIndices()));
+        }
+        LodNode parent = tree.findNode(new SectionPos(0, 0, 0), 1);
+        parent.markGeometryReady(parent.contentRevision());
+        for (int i = 0; i < 8; i++)
+            tree.findLeaf(new SectionPos(i & 1, (i >>> 1) & 1, (i >>> 2) & 1))
+                    .markGeometryReady(tree.findLeaf(new SectionPos(i & 1, (i >>> 1) & 1, (i >>> 2) & 1)).contentRevision());
+
+        java.util.Set<LodNode> ready = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        ready.add(parent);
+        for (int i = 0; i < 7; i++)
+            ready.add(tree.findLeaf(new SectionPos(i & 1, (i >>> 1) & 1, (i >>> 2) & 1)));
+        var partial = LodNodeTraversal.collectByDistance(tree, new HierarchicalLodSelector(),
+                8.0, 8.0, 8.0, 4096.0, ready::contains);
+        check(partial.size() == 1 && partial.get(0).node() == parent && partial.get(0).fallback(),
+                "parent remains selected while one child mesh is not ready");
+
+        ready.add(tree.findLeaf(new SectionPos(1, 1, 1)));
+        var complete = LodNodeTraversal.collectByDistance(tree, new HierarchicalLodSelector(),
+                8.0, 8.0, 8.0, 4096.0, ready::contains);
+        check(complete.size() == 8 && complete.stream().noneMatch(LodNodeTraversal.Selection::fallback),
+                "all children replace parent together once every child mesh is ready");
+
+        ready.remove(tree.findLeaf(new SectionPos(0, 0, 0)));
+        var regressed = LodNodeTraversal.collectByDistance(tree, new HierarchicalLodSelector(),
+                8.0, 8.0, 8.0, 4096.0, ready::contains);
+        check(regressed.size() == 1 && regressed.get(0).node() == parent && regressed.get(0).fallback(),
+                "parent fallback is restored when a child mesh becomes unavailable");
     }
 
     private static void testBoundedHierarchyQuery() {

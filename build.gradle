@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'dev.brezze'
-version = '0.1.66-stage76'
+version = '0.1.67-stage77'
 
 base { archivesName = 'VoxyMobile-Reborn' }
 
@@ -730,3 +730,13 @@ tasks.register('stage76GpuReadyFallbackSmokeTest', JavaExec) {
 }
 tasks.register('stage76SmokeTest') { dependsOn tasks.named('stage76GpuReadyFallbackSmokeTest') }
 check.dependsOn tasks.named('stage76SmokeTest')
+
+ 
+// Stage 77: validate atomic parent/child mesh handoff under asynchronous readiness changes.
+tasks.register('stage77AtomicLodTransitionSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.core.lod.LodNodeTraversalSmokeTest'
+}
+tasks.register('stage77SmokeTest') { dependsOn tasks.named('stage77AtomicLodTransitionSmokeTest') }
+check.dependsOn tasks.named('stage77SmokeTest')

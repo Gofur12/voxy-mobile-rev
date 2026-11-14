@@ -2,6 +2,8 @@ package dev.brezze.voxymobile.core.lod;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.IdentityHashMap;
+import java.util.Map;
 import java.util.function.Predicate;
 
 /** CPU-side parent/child selection with conservative parent-mesh fallback. */
@@ -44,8 +46,14 @@ public final class LodNodeTraversal {
         selector.retainNodes(liveNodes);
         List<Selection> output = new ArrayList<>();
         double maxDistanceSquared = maxDistance * maxDistance;
+        // Freeze render-resource availability for this traversal. A mesh becoming ready or
+        // being retired mid-selection must not make siblings observe different readiness.
+        Map<LodNode, Boolean> availability = new IdentityHashMap<>();
+        Predicate<LodNode> frameRenderable = node ->
+                availability.computeIfAbsent(node, renderable::test);
         for (LodNode root : tree.rootsWithinDistance(cameraX, cameraY, cameraZ, maxDistance))
-            selectByDistance(root, selector, cameraX, cameraY, cameraZ, maxDistanceSquared, renderable, output);
+            selectByDistance(root, selector, cameraX, cameraY, cameraZ, maxDistanceSquared,
+                    frameRenderable, output);
         return output;
     }
 
