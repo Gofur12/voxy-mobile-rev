@@ -37,6 +37,7 @@ import dev.brezze.voxymobile.render.geometry.LodSeamSmartScheduler;
 import dev.brezze.voxymobile.render.geometry.LodSeamRuntimeMetrics;
 import dev.brezze.voxymobile.render.geometry.LodSeamFailureMarker;
 import dev.brezze.voxymobile.render.geometry.LodSeamFailureOverlay;
+import dev.brezze.voxymobile.render.geometry.LodSeamRetryPolicy;
 import dev.brezze.voxymobile.render.geometry.LodSelectionNeighborBridge;
 import net.minecraft.client.render.Camera;
 import net.minecraft.client.util.math.MatrixStack;
@@ -107,6 +108,7 @@ public final class GlesLodRenderer {
     private final LodSeamRevisionTracker seamRevisionTracker = new LodSeamRevisionTracker();
     private final LodSeamAsyncBuildQueue seamBuildQueue = new LodSeamAsyncBuildQueue(1, 16);
     private final LodSeamRuntimeMetrics seamRuntimeMetrics = new LodSeamRuntimeMetrics();
+    private final LodSeamRetryPolicy seamRetryPolicy = new LodSeamRetryPolicy();
     private static final long MAX_SEAM_UPLOAD_BYTES_PER_FRAME = 512L * 1024L;
     private final ParentGeometryCache parentGeometryCache = new ParentGeometryCache(24L * 1024L * 1024L);
     private final GpuMemoryBudgetController gpuMemoryBudget = new GpuMemoryBudgetController();
@@ -510,6 +512,7 @@ public final class GlesLodRenderer {
         seamUploadQueue.remove(key);
         seamBuildQueue.remove(key);
         seamRevisionTracker.remove(key);
+        seamRetryPolicy.remove(key);
         seamCandidateBounds.remove(key);
         seamFailureMarkers.remove(key);
         LodSeamGpuBuffer removed = seamMeshes.remove(key);
@@ -571,6 +574,7 @@ public final class GlesLodRenderer {
             CpuMeshView coarseMesh = cpuMesh(coarse);
             if (fineMesh == null || coarseMesh == null) { removeSeamMesh(key); continue; }
             long revision = priority.revision();
+            if (!seamRetryPolicy.shouldAttempt(key, revision, System.nanoTime())) continue;
             LodSeamGpuBuffer existing = seamMeshes.get(key);
             if (existing != null && existing.revision() == revision) continue;
             if (seamUploadQueue.pendingRevision(key) == revision) continue;
@@ -601,7 +605,7 @@ public final class GlesLodRenderer {
             if (seamBuildQueue.submit(key, revision, () -> LodSeamLiveProducer.generate(key, revision,
                     fineVertices, fineIndices, coarseVertices, coarseIndices,
                     pAxis, p, 1, y0, y1, bAxis, b0, b1, 1.0e-3f, 8192))) {
-                seamFailureMarkers.remove(key);
+                // Keep the last failure marker visible while recovery is pending.
                 seamRuntimeMetrics.buildScheduled();
             }
         }
@@ -620,6 +624,7 @@ public final class GlesLodRenderer {
                 seamRuntimeMetrics.buildCompleted(false);
                 LodSeamBounds bounds = seamCandidateBounds.get(completed.key());
                 if (bounds != null && seamRevisionTracker.currentRevision(completed.key()) == completed.revision()) {
+                    seamRetryPolicy.recordFailure(completed.key(), completed.revision(), System.nanoTime());
                     String reason = completed.result() == null ? "worker-exception" : completed.result().status();
                     seamFailureMarkers.put(completed.key(), new LodSeamFailureMarker(
                             completed.key(), completed.revision(), bounds, reason));
@@ -629,6 +634,7 @@ public final class GlesLodRenderer {
             seamRuntimeMetrics.buildCompleted(true);
             long currentRevision = seamRevisionTracker.currentRevision(completed.key());
             if (currentRevision != completed.revision()) { seamRuntimeMetrics.staleResult(); continue; }
+            seamRetryPolicy.recordSuccess(completed.key(), completed.revision());
             seamFailureMarkers.remove(completed.key());
             seamRuntimeMetrics.uploadQueued(enqueueSeamMesh(completed.result().payload()));
         }
@@ -865,6 +871,7 @@ public final class GlesLodRenderer {
         seamUploadQueue.clear();
         seamBuildQueue.close();
         seamRevisionTracker.clear();
+        seamRetryPolicy.clear();
         RuntimeDiagnostics.seamDrawStats(0, 0);
         parentGeometryCache.clear();
         parentUploadQueue.clear();
