@@ -32,7 +32,7 @@ public final class LodNodeTraversalSmokeTest {
         for (int x = 0; x < 8; x++)
             tree.put(new VoxelSection(new SectionPos(x * 16, 0, 0), new int[]{0, 1}, filledIndices()));
         int all = tree.nodesSnapshot().size();
-        var near = tree.nodesWithinDistance(8.0, 8.0, 8.0, 96.0);
+        var near = tree.nodesWithinDistance(8.0, 8.0, 8.0, 300.0);
         check(!near.isEmpty(), "nearby hierarchy nodes returned");
         check(near.size() < all, "distant branches pruned");
         check(tree.nodesWithinDistance(8.0, 8.0, 8.0, 32.0).size() < near.size(),
