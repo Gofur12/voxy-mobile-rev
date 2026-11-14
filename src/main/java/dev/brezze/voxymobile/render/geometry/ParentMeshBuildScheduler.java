@@ -36,15 +36,16 @@ public final class ParentMeshBuildScheduler implements AutoCloseable {
     public boolean request(NodeDataSnapshot snapshot, double distanceSquared) {
         if (snapshot == null || !Double.isFinite(distanceSquared) || distanceSquared < 0) return false;
         ParentGeometryKey key = new ParentGeometryKey(snapshot.origin(), snapshot.level());
+        double lodAwarePriority = lodAwarePriority(snapshot, distanceSquared);
         synchronized (lock) {
             if (closed) return false;
             RequestState state = requested.get(key);
             if (state != null && state.revision == snapshot.contentRevision()) {
                 // Keep not-yet-started parent work aligned with the latest camera priority.
                 Job queued = latestPending.get(key);
-                if (queued != null && queued.distanceSquared != distanceSquared) {
+                if (queued != null && queued.distanceSquared != lodAwarePriority) {
                     pending.remove(queued);
-                    Job refreshed = new Job(key, snapshot, distanceSquared, sequence++, queued.enqueuedNanos);
+                    Job refreshed = new Job(key, snapshot, lodAwarePriority, sequence++, queued.enqueuedNanos);
                     pending.add(refreshed);
                     latestPending.put(key, refreshed);
                     lock.notifyAll();
@@ -54,7 +55,7 @@ public final class ParentMeshBuildScheduler implements AutoCloseable {
             Job old = latestPending.remove(key);
             if (old != null) pending.remove(old);
             requested.put(key, new RequestState(snapshot.contentRevision()));
-            Job job = new Job(key, snapshot, distanceSquared, sequence++, System.nanoTime());
+            Job job = new Job(key, snapshot, lodAwarePriority, sequence++, System.nanoTime());
             if (pending.size() >= MAX_PENDING) {
                 Job farthest = worstPending(System.nanoTime());
                 if (farthest == null || effective(job, System.nanoTime()) >= effective(farthest, System.nanoTime())) {
@@ -70,6 +71,20 @@ public final class ParentMeshBuildScheduler implements AutoCloseable {
             lock.notifyAll();
             return true;
         }
+    }
+
+    /**
+     * Normalize camera distance by the node's world-space span. At the same distance,
+     * coarse nodes receive earlier CPU build priority so a usable far-field silhouette
+     * is produced before spending work on finer child meshes.
+     */
+    public static double lodAwarePriority(NodeDataSnapshot snapshot, double distanceSquared) {
+        if (snapshot == null || !Double.isFinite(distanceSquared) || distanceSquared < 0.0)
+            return Double.MAX_VALUE;
+        double spanBlocks = Math.scalb(16.0, snapshot.level());
+        double normalized = distanceSquared / (spanBlocks * spanBlocks);
+        // Tiny deterministic level bias breaks equal normalized-distance ties in favor of coarser nodes.
+        return normalized / (1.0 + snapshot.level() * 0.015);
     }
 
     public void invalidate(ParentGeometryKey key) {

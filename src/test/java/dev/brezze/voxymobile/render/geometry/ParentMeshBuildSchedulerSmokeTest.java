@@ -9,12 +9,26 @@ import java.util.Arrays;
 
 public final class ParentMeshBuildSchedulerSmokeTest {
     public static void main(String[] args) throws Exception {
+        testLodAwarePriority();
         testAtomicSnapshot();
         testAsyncBuild();
         testMultiLevelBuild();
         testStaleResultInvalidation();
         testCloseStopsWorker();
-        System.out.println("ParentMeshBuildSchedulerSmokeTest: PASS (5 cases)");
+        System.out.println("ParentMeshBuildSchedulerSmokeTest: PASS (6 cases)");
+    }
+
+    private static void testLodAwarePriority() {
+        NodeDataSnapshot level1 = new NodeDataSnapshot(new SectionPos(0, 0, 0), 1, 1,
+                new dev.brezze.voxymobile.core.lod.LodNodeSnapshot(new SectionPos(0, 0, 0), 1, null,
+                        new dev.brezze.voxymobile.core.lod.LodNodeSnapshot[8]));
+        NodeDataSnapshot level2 = new NodeDataSnapshot(new SectionPos(0, 0, 0), 2, 1,
+                new dev.brezze.voxymobile.core.lod.LodNodeSnapshot(new SectionPos(0, 0, 0), 2, null,
+                        new dev.brezze.voxymobile.core.lod.LodNodeSnapshot[8]));
+        double fine = ParentMeshBuildScheduler.lodAwarePriority(level1, 1_000_000.0);
+        double coarse = ParentMeshBuildScheduler.lodAwarePriority(level2, 1_000_000.0);
+        check(coarse < fine, "coarse far-field parent gets priority over fine parent at equal distance");
+        check(ParentMeshBuildScheduler.lodAwarePriority(level1, 0.0) == 0.0, "camera-local node priority remains zero");
     }
 
     private static void testAtomicSnapshot() {

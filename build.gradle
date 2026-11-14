@@ -625,11 +625,11 @@ tasks.register('stage63SmokeTest') { dependsOn tasks.named('stage63IndependentLo
 check.dependsOn tasks.named('stage63SmokeTest')
 
 
-// Stage 64: coarse parent LODs receive bounded priority so far-field coverage is built first.
+// Stage 64: prioritize coarse parent coverage before fine parent meshes at equivalent distance.
 tasks.register('stage64ParentLodPrioritySmokeTest', JavaExec) {
     dependsOn testClasses
     classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'dev.brezze.voxymobile.render.streaming.ParentLodBuildPrioritySmokeTest'
+    mainClass = 'dev.brezze.voxymobile.render.geometry.ParentMeshBuildSchedulerSmokeTest'
 }
 tasks.register('stage64SmokeTest') { dependsOn tasks.named('stage64ParentLodPrioritySmokeTest') }
 check.dependsOn tasks.named('stage64SmokeTest')
