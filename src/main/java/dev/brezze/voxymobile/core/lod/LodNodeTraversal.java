@@ -26,11 +26,11 @@ public final class LodNodeTraversal {
         if (tree == null || selector == null) throw new IllegalArgumentException("tree and selector are required");
         if (!(maxDistance > 0.0) || Double.isNaN(maxDistance))
             throw new IllegalArgumentException("maxDistance must be positive");
-        List<LodNode> liveNodes = tree.nodesSnapshot();
+        List<LodNode> liveNodes = tree.nodesWithinDistance(cameraX, cameraY, cameraZ, maxDistance);
         selector.retainNodes(liveNodes);
         List<Selection> output = new ArrayList<>();
         double maxDistanceSquared = maxDistance * maxDistance;
-        for (LodNode root : tree.rootsSnapshot())
+        for (LodNode root : tree.rootsWithinDistance(cameraX, cameraY, cameraZ, maxDistance))
             selectByDistance(root, selector, cameraX, cameraY, cameraZ, maxDistanceSquared, output);
         return output;
     }

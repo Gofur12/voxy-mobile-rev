@@ -37,6 +37,21 @@ public final class LodNodeTraversalSmokeTest {
         check(near.size() < all, "distant branches pruned");
         check(tree.nodesWithinDistance(8.0, 8.0, 8.0, 32.0).size() < near.size(),
                 "smaller radius returns fewer nodes");
+        check(tree.rootsWithinDistance(8.0, 8.0, 8.0, 32.0).size()
+                <= tree.rootsSnapshot().size(), "root query never expands beyond all roots");
+        check(LodNodeTraversal.collectByDistance(tree, new HierarchicalLodSelector(),
+                8.0, 8.0, 8.0, 32.0).stream().allMatch(selection ->
+                distanceToBounds(selection.node(), 8.0, 8.0, 8.0) <= 32.0),
+                "draw traversal emits only nodes inside the LOD radius");
+    }
+
+    private static double distanceToBounds(LodNode node, double x, double y, double z) {
+        double minX = node.origin().x() * 16.0, minY = node.origin().y() * 16.0, minZ = node.origin().z() * 16.0;
+        double span = node.spanSections() * 16.0;
+        double dx = x < minX ? minX - x : x > minX + span ? x - minX - span : 0.0;
+        double dy = y < minY ? minY - y : y > minY + span ? y - minY - span : 0.0;
+        double dz = z < minZ ? minZ - z : z > minZ + span ? z - minZ - span : 0.0;
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
     private static short[] filledIndices() {

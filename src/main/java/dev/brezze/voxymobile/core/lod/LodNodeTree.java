@@ -168,6 +168,19 @@ public final class LodNodeTree {
         return Collections.unmodifiableList(new ArrayList<>(roots.values()));
     }
 
+    /** Returns only root regions intersecting the active LOD radius. */
+    public synchronized List<LodNode> rootsWithinDistance(double cameraX, double cameraY, double cameraZ,
+                                                            double maxDistance) {
+        if (!Double.isFinite(cameraX) || !Double.isFinite(cameraY) || !Double.isFinite(cameraZ)
+                || !Double.isFinite(maxDistance) || maxDistance <= 0.0)
+            throw new IllegalArgumentException("finite camera coordinates and positive maxDistance required");
+        double limitSquared = maxDistance * maxDistance;
+        List<LodNode> result = new ArrayList<>();
+        for (LodNode root : roots.values())
+            if (distanceToNodeAabbSquared(root, cameraX, cameraY, cameraZ) <= limitSquared) result.add(root);
+        return Collections.unmodifiableList(result);
+    }
+
     /** Stable structural snapshot for render-thread scheduling; node revisions remain authoritative. */
     public synchronized List<LodNode> nodesSnapshot() {
         List<LodNode> result = new ArrayList<>();

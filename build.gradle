@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'dev.brezze'
-version = '0.1.64-stage74'
+version = '0.1.65-stage75'
 
 base { archivesName = 'VoxyMobile-Reborn' }
 
@@ -710,3 +710,13 @@ tasks.register('stage74BoundedHierarchyQuerySmokeTest', JavaExec) {
 }
 tasks.register('stage74SmokeTest') { dependsOn tasks.named('stage74BoundedHierarchyQuerySmokeTest') }
 check.dependsOn tasks.named('stage74SmokeTest')
+
+ 
+// Stage 75: use bounded root and node snapshots in the actual draw traversal.
+tasks.register('stage75BoundedDrawTraversalSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.core.lod.LodNodeTraversalSmokeTest'
+}
+tasks.register('stage75SmokeTest') { dependsOn tasks.named('stage75BoundedDrawTraversalSmokeTest') }
+check.dependsOn tasks.named('stage75SmokeTest')
