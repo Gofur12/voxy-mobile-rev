@@ -115,7 +115,7 @@ public final class GlesLodRenderer {
     private final GpuUploadBudgetController gpuUploadBudget = new GpuUploadBudgetController();
     private MeshBuildData deferredLeafUpload;
     private final ParentGeometryUploadQueue parentUploadQueue = new ParentGeometryUploadQueue(128);
-    private final ParentMeshBuildScheduler parentBuildScheduler = new ParentMeshBuildScheduler();
+    private final ParentMeshBuildScheduler parentBuildScheduler;
     private long gpuBytes;
     private final Map<SectionPos, Integer> selectedLods = new HashMap<>();
     private int program;
@@ -133,7 +133,10 @@ public final class GlesLodRenderer {
     private int neighborRefreshTicks;
     private volatile double maxLodDistance = 2048.0;
 
-    public GlesLodRenderer(ChunkSnapshotStore store) { this.store = store; }
+    public GlesLodRenderer(ChunkSnapshotStore store) { this(store, 1); }
+    public GlesLodRenderer(ChunkSnapshotStore store, int serviceThreads) {
+        this.store = store; this.parentBuildScheduler = new ParentMeshBuildScheduler(serviceThreads);
+    }
 
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
     public boolean isEnabled() { return enabled; }

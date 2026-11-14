@@ -34,7 +34,7 @@ public final class VoxyMobileClient implements ClientModInitializer {
     private static final ChunkSnapshotStore STORE = new ChunkSnapshotStore();
     private static final int MAX_PENDING_SECTIONS = 8192;
     private static final Map<SectionPos, PendingSection> PENDING = new LinkedHashMap<>();
-    private static final GlesLodRenderer RENDERER = new GlesLodRenderer(STORE);
+    private static GlesLodRenderer RENDERER;
     private static KeyBinding TOGGLE_SEAM_DEBUG;
     private static PersistentSectionCacheWorker CACHE_WORKER;
     private static ClientWorld CACHE_WORLD;
@@ -47,6 +47,7 @@ public final class VoxyMobileClient implements ClientModInitializer {
     @Override public void onInitializeClient() {
         System.out.println("[VoxyMobile] client initializer active; waiting for chunk and world-render events");
         int lodDistance = LodDistanceConfig.load();
+        RENDERER = new GlesLodRenderer(STORE, LodDistanceConfig.serviceThreads());
         RENDERER.setMaxLodDistance(lodDistance);
         masterEnabled = LodDistanceConfig.enabled();
         rendererSetting = LodDistanceConfig.rendererEnabled();
@@ -54,7 +55,7 @@ public final class VoxyMobileClient implements ClientModInitializer {
         RENDERER.setEnabled(masterEnabled && rendererSetting);
         RENDERER.setSeamDebugOverlayEnabled(LodDistanceConfig.seamDebugOverlayEnabled());
         terrainIngestionEnabled = masterEnabled && terrainIngestionSetting;
-        System.out.println("[VoxyMobile] independent LOD distance=" + lodDistance + " blocks");
+        System.out.println("[VoxyMobile] independent LOD distance=" + lodDistance + " blocks; parent service threads=" + LodDistanceConfig.serviceThreads());
         WorldRenderEvents.AFTER_ENTITIES.register(RENDERER::render);
         TOGGLE_SEAM_DEBUG = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.voxymobile.toggle_seam_debug", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_F7,

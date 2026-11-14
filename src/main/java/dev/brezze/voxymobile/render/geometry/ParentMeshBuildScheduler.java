@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-/** Bounded single-worker parent aggregation/meshing scheduler. It never touches OpenGL. */
+/** Bounded parent aggregation/meshing worker pool. It never touches OpenGL. */
 public final class ParentMeshBuildScheduler implements AutoCloseable {
     private static final int MAX_PENDING = 48;
     private static final int MAX_COMPLETED = 48;
@@ -22,16 +22,21 @@ public final class ParentMeshBuildScheduler implements AutoCloseable {
     private final Map<ParentGeometryKey, Job> latestPending = new HashMap<>();
     private final Map<ParentGeometryKey, RequestState> requested = new HashMap<>();
     private final ArrayBlockingQueue<ParentGpuMeshData> completed = new ArrayBlockingQueue<>(MAX_COMPLETED);
-    private final Thread worker;
+    private final Thread[] workers;
     private long sequence;
     private boolean closed;
 
-    public ParentMeshBuildScheduler() {
-        worker = new Thread(this::workLoop, "VoxyMobile-ParentMeshWorker");
-        worker.setDaemon(true);
-        worker.setPriority(Thread.NORM_PRIORITY - 2);
-        worker.start();
+    public ParentMeshBuildScheduler() { this(1); }
+    public ParentMeshBuildScheduler(int workerCount) {
+        int count = Math.max(1, Math.min(4, workerCount));
+        workers = new Thread[count];
+        for (int i = 0; i < count; i++) {
+            Thread worker = new Thread(this::workLoop, "VoxyMobile-ParentMeshWorker-" + (i + 1));
+            worker.setDaemon(true); worker.setPriority(Thread.NORM_PRIORITY - 2);
+            workers[i] = worker; worker.start();
+        }
     }
+    public int workerCount() { return workers.length; }
 
     public boolean request(NodeDataSnapshot snapshot, double distanceSquared) {
         if (snapshot == null || !Double.isFinite(distanceSquared) || distanceSquared < 0) return false;
@@ -166,8 +171,9 @@ public final class ParentMeshBuildScheduler implements AutoCloseable {
             if (closed) return;
             closed = true; pending.clear(); latestPending.clear(); requested.clear(); lock.notifyAll();
         }
-        worker.interrupt(); completed.clear();
-        try { worker.join(TimeUnit.SECONDS.toMillis(2)); }
+        for (Thread worker : workers) worker.interrupt();
+        completed.clear();
+        try { for (Thread worker : workers) worker.join(TimeUnit.SECONDS.toMillis(2)); }
         catch (InterruptedException e) { Thread.currentThread().interrupt(); }
     }
 

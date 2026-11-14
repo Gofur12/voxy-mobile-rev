@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'dev.brezze'
-version = '0.1.62-stage72'
+version = '0.1.63-stage73'
 
 base { archivesName = 'VoxyMobile-Reborn' }
 
