@@ -172,7 +172,7 @@ public final class LodNodeTree {
     public synchronized List<LodNode> rootsWithinDistance(double cameraX, double cameraY, double cameraZ,
                                                             double maxDistance) {
         if (!Double.isFinite(cameraX) || !Double.isFinite(cameraY) || !Double.isFinite(cameraZ)
-                || !Double.isFinite(maxDistance) || maxDistance <= 0.0)
+                || Double.isNaN(maxDistance) || maxDistance <= 0.0)
             throw new IllegalArgumentException("finite camera coordinates and positive maxDistance required");
         double limitSquared = maxDistance * maxDistance;
         List<LodNode> result = new ArrayList<>();
