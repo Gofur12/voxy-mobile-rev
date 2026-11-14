@@ -789,3 +789,13 @@ tasks.register('stage82BoundedCacheRestoreSmokeTest', JavaExec) {
 }
 tasks.register('stage82SmokeTest') { dependsOn tasks.named('stage82BoundedCacheRestoreSmokeTest') }
 check.dependsOn tasks.named('stage82SmokeTest')
+
+
+// Stage 83: cache restore distinguishes successful completion from cancellation and I/O failure.
+tasks.register('stage83RestoreStateSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.core.PersistentSectionCacheWorkerSmokeTest'
+}
+tasks.register('stage83SmokeTest') { dependsOn tasks.named('stage83RestoreStateSmokeTest') }
+check.dependsOn tasks.named('stage83SmokeTest')
