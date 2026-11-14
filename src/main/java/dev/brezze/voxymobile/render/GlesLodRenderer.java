@@ -312,13 +312,13 @@ public final class GlesLodRenderer {
 
     /** Stage 17: schedule every populated parent level; CPU aggregation and meshing stay on the worker. */
     private void processParentGeometry(FrustumCuller schedulingFrustum) {
-        List<LodNode> nodes = store.lodTree().nodesSnapshot();
+        List<LodNode> nodes = store.lodTree().nodesWithinDistance(contextFreeCameraX, contextFreeCameraY,
+                contextFreeCameraZ, maxLodDistance);
+        hierarchySelector.retainNodes(nodes);
         Set<ParentGeometryKey> live = new HashSet<>();
         int parentBuildRequests = 0;
         for (LodNode node : nodes) {
             if (node.level() <= 0) continue;
-            if (distanceToNodeAabbSquared(node, contextFreeCameraX, contextFreeCameraY, contextFreeCameraZ)
-                    > maxLodDistance * maxLodDistance) continue;
             ParentGeometryKey key = new ParentGeometryKey(node.origin(), node.level());
             live.add(key);
             if (node.hasCurrentGeometry()) continue;

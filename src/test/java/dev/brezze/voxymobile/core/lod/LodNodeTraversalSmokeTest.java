@@ -23,7 +23,20 @@ public final class LodNodeTraversalSmokeTest {
                 "independent radius excludes distant root");
         check(LodNodeTraversal.collectByDistance(tree, new HierarchicalLodSelector(), 1000, 1000, 1000, 4096).size() == 1,
                 "larger independent radius includes root hierarchy");
+        testBoundedHierarchyQuery();
         System.out.println("LodNodeTraversalSmokeTest: PASS");
+    }
+
+    private static void testBoundedHierarchyQuery() {
+        LodNodeTree tree = new LodNodeTree(3);
+        for (int x = 0; x < 8; x++)
+            tree.put(new VoxelSection(new SectionPos(x * 16, 0, 0), new int[]{0, 1}, filledIndices()));
+        int all = tree.nodesSnapshot().size();
+        var near = tree.nodesWithinDistance(8.0, 8.0, 8.0, 96.0);
+        check(!near.isEmpty(), "nearby hierarchy nodes returned");
+        check(near.size() < all, "distant branches pruned");
+        check(tree.nodesWithinDistance(8.0, 8.0, 8.0, 32.0).size() < near.size(),
+                "smaller radius returns fewer nodes");
     }
 
     private static short[] filledIndices() {

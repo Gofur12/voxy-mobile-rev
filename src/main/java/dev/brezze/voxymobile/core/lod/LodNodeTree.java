@@ -175,6 +175,41 @@ public final class LodNodeTree {
         return Collections.unmodifiableList(result);
     }
 
+    /** Returns only nodes intersecting the radius, pruning distant branches before allocation. */
+    public synchronized List<LodNode> nodesWithinDistance(double cameraX, double cameraY, double cameraZ,
+                                                           double maxDistance) {
+        if (!Double.isFinite(cameraX) || !Double.isFinite(cameraY) || !Double.isFinite(cameraZ)
+                || !Double.isFinite(maxDistance) || maxDistance <= 0.0)
+            throw new IllegalArgumentException("finite camera coordinates and positive maxDistance required");
+        List<LodNode> result = new ArrayList<>();
+        double maxDistanceSquared = maxDistance * maxDistance;
+        for (LodNode root : roots.values())
+            collectNodesWithinDistance(root, cameraX, cameraY, cameraZ, maxDistanceSquared, result);
+        return Collections.unmodifiableList(result);
+    }
+
+    private static void collectNodesWithinDistance(LodNode node, double x, double y, double z,
+                                                   double maxDistanceSquared, List<LodNode> output) {
+        if (node == null || distanceToNodeAabbSquared(node, x, y, z) > maxDistanceSquared) return;
+        output.add(node);
+        for (int i = 0; i < 8; i++)
+            collectNodesWithinDistance(node.child(i), x, y, z, maxDistanceSquared, output);
+    }
+
+    private static double distanceToNodeAabbSquared(LodNode node, double x, double y, double z) {
+        double minX = node.origin().x() * 16.0, minY = node.origin().y() * 16.0, minZ = node.origin().z() * 16.0;
+        double span = node.spanSections() * 16.0;
+        double dx = axisDistance(x, minX, minX + span), dy = axisDistance(y, minY, minY + span);
+        double dz = axisDistance(z, minZ, minZ + span);
+        return dx * dx + dy * dy + dz * dz;
+    }
+
+    private static double axisDistance(double value, double min, double max) {
+        if (value < min) return min - value;
+        if (value > max) return value - max;
+        return 0.0;
+    }
+
     private static void collectNodes(LodNode node, List<LodNode> output) {
         if (node == null) return;
         output.add(node);
