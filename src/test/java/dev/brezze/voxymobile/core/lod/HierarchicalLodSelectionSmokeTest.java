@@ -27,6 +27,7 @@ public final class HierarchicalLodSelectionSmokeTest {
         HierarchicalLodSelector buildPolicy = new HierarchicalLodSelector();
         check(!buildPolicy.shouldBuildParentGeometry(root, 8, 8, 8),
                 "near camera defers coarse parent mesh generation");
+        root.invalidateGeometry();
         check(buildPolicy.shouldBuildParentGeometry(root, 4000, 4000, 4000),
                 "far camera requests coarse parent mesh generation");
         root.markGeometryReady(root.contentRevision());
