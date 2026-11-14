@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'dev.brezze'
-version = '0.1.58-stage68'
+version = '0.1.59-stage69'
 
 base { archivesName = 'VoxyMobile-Reborn' }
 
@@ -673,3 +673,13 @@ tasks.register('stage68LongRangeHierarchySmokeTest', JavaExec) {
 }
 tasks.register('stage68SmokeTest') { dependsOn tasks.named('stage68LongRangeHierarchySmokeTest') }
 check.dependsOn tasks.named('stage68SmokeTest')
+
+
+// Stage 69: practical 4096-block default for independent far-field LOD.
+tasks.register('stage69LodDistancePolicySmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.core.config.LodDistancePolicySmokeTest'
+}
+tasks.register('stage69SmokeTest') { dependsOn tasks.named('stage69LodDistancePolicySmokeTest') }
+check.dependsOn tasks.named('stage69SmokeTest')

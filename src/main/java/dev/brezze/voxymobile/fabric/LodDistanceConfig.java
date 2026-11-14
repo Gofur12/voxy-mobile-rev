@@ -1,6 +1,7 @@
 package dev.brezze.voxymobile.fabric;
 
 import net.fabricmc.loader.api.FabricLoader;
+import dev.brezze.voxymobile.core.config.LodDistancePolicy;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
@@ -10,9 +11,9 @@ import java.util.Properties;
 
 /** Independent far-LOD distance setting, separate from Minecraft's vanilla chunk distance. */
 public final class LodDistanceConfig {
-    public static final int DEFAULT_DISTANCE = 2048;
-    public static final int MIN_DISTANCE = 256;
-    public static final int MAX_DISTANCE = 8192;
+    public static final int DEFAULT_DISTANCE = LodDistancePolicy.DEFAULT_DISTANCE;
+    public static final int MIN_DISTANCE = LodDistancePolicy.MIN_DISTANCE;
+    public static final int MAX_DISTANCE = LodDistancePolicy.MAX_DISTANCE;
     private static final String KEY = "lodDistanceBlocks";
 
     private LodDistanceConfig() {}
@@ -27,13 +28,8 @@ public final class LodDistanceConfig {
                 System.err.println("[VoxyMobile] Could not read config: " + error.getMessage());
             }
         }
-        int distance = DEFAULT_DISTANCE;
-        try {
-            distance = Integer.parseInt(properties.getProperty(KEY, Integer.toString(DEFAULT_DISTANCE)).trim());
-        } catch (RuntimeException error) {
-            System.err.println("[VoxyMobile] Invalid " + KEY + "; using " + DEFAULT_DISTANCE);
-        }
-        distance = Math.max(MIN_DISTANCE, Math.min(MAX_DISTANCE, distance));
+        String configured = properties.getProperty(KEY, Integer.toString(DEFAULT_DISTANCE));
+        int distance = LodDistancePolicy.parse(configured);
         properties.setProperty(KEY, Integer.toString(distance));
         try {
             Files.createDirectories(file.getParent());
