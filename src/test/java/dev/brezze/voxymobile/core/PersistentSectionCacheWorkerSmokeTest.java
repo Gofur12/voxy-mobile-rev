@@ -44,10 +44,11 @@ public final class PersistentSectionCacheWorkerSmokeTest {
             }
             PersistentSectionCacheWorker bulkReader = new PersistentSectionCacheWorker(root, "world", "overworld");
             bulkReader.load(8.0, 8.0, 8.0);
-            for (int i = 0; i < 100 && bulkReader.pendingLoaded() == 0; i++)
+            for (int i = 0; i < 300 && bulkReader.pendingLoaded() < 128; i++)
                 TimeUnit.MILLISECONDS.sleep(10);
-            if (bulkReader.pendingLoaded() > 128)
-                throw new AssertionError("loaded handoff exceeded fixed capacity");
+            if (bulkReader.pendingLoaded() != 128)
+                throw new AssertionError("restore handoff did not reach its expected bounded capacity: "
+                        + bulkReader.pendingLoaded());
             // A full restore handoff must not block live terrain writes.
             int[] liveData = new int[VoxelSection.VOLUME];
             liveData[0] = 777;
