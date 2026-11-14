@@ -10,7 +10,7 @@ import java.util.Map;
 
 /** Sparse, incrementally maintained 8-way LOD tree. All public operations are synchronized. */
 public final class LodNodeTree {
-    public static final int DEFAULT_MAX_LEVEL = 6;
+    public static final int DEFAULT_MAX_LEVEL = 8;
     private final int maxLevel;
     private final Map<SectionPos, LodNode> roots = new HashMap<>();
     private int nodeCount;
