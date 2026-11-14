@@ -19,6 +19,10 @@ public final class LodNodeTraversalSmokeTest {
             leaf.markGeometryReady(leaf.contentRevision());
         }
         check(LodNodeTraversal.collect(tree, 0).size() == 8, "children replace parent when complete");
+        check(LodNodeTraversal.collectByDistance(tree, new HierarchicalLodSelector(), 1000, 1000, 1000, 64).isEmpty(),
+                "independent radius excludes distant root");
+        check(LodNodeTraversal.collectByDistance(tree, new HierarchicalLodSelector(), 1000, 1000, 1000, 4096).size() == 1,
+                "larger independent radius includes root hierarchy");
         System.out.println("LodNodeTraversalSmokeTest: PASS");
     }
 

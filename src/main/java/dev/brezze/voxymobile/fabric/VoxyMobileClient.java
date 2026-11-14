@@ -33,6 +33,9 @@ public final class VoxyMobileClient implements ClientModInitializer {
 
     @Override public void onInitializeClient() {
         System.out.println("[VoxyMobile] client initializer active; waiting for chunk and world-render events");
+        int lodDistance = LodDistanceConfig.load();
+        RENDERER.setMaxLodDistance(lodDistance);
+        System.out.println("[VoxyMobile] independent LOD distance=" + lodDistance + " blocks");
         WorldRenderEvents.AFTER_ENTITIES.register(RENDERER::render);
         TOGGLE_SEAM_DEBUG = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.voxymobile.toggle_seam_debug", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_F7,

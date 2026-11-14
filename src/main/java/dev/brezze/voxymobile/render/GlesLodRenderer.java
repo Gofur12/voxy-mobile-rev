@@ -130,6 +130,7 @@ public final class GlesLodRenderer {
     private double cameraForwardY;
     private double cameraForwardZ = -1.0;
     private int neighborRefreshTicks;
+    private volatile double maxLodDistance = 2048.0;
 
     public GlesLodRenderer(ChunkSnapshotStore store) { this.store = store; }
 
@@ -170,8 +171,13 @@ public final class GlesLodRenderer {
                     .mul(context.matrixStack().peek().getPositionMatrix());
             FrustumCuller schedulingFrustum = FrustumCuller.from(schedulingMvp);
             int buildRequests = 0;
+            double maxLodDistanceSquared = maxLodDistance * maxLodDistance;
             for (Map.Entry<SectionPos, VoxelSection> entry : current.entrySet()) {
                 SectionPos pos = entry.getKey();
+                double leafDx = pos.x() * 16.0 + 8.0 - cameraPos.x;
+                double leafDy = pos.y() * 16.0 + 8.0 - cameraPos.y;
+                double leafDz = pos.z() * 16.0 + 8.0 - cameraPos.z;
+                if (leafDx * leafDx + leafDy * leafDy + leafDz * leafDz > maxLodDistanceSquared) continue;
                 GpuMesh old = meshes.get(pos);
                 int previousLod = selectedLods.getOrDefault(pos, old == null ? -1 : old.lodLevel);
                 int wantedLod = chooseLod(pos, cameraPos, previousLod);
@@ -304,6 +310,8 @@ public final class GlesLodRenderer {
         int parentBuildRequests = 0;
         for (LodNode node : nodes) {
             if (node.level() <= 0) continue;
+            if (distanceToNodeAabbSquared(node, contextFreeCameraX, contextFreeCameraY, contextFreeCameraZ)
+                    > maxLodDistance * maxLodDistance) continue;
             ParentGeometryKey key = new ParentGeometryKey(node.origin(), node.level());
             live.add(key);
             if (node.hasCurrentGeometry()) continue;
@@ -711,12 +719,12 @@ public final class GlesLodRenderer {
         Set<SectionPos> visibleLeaves = new HashSet<>();
         for (SectionVisibilityPipeline.VisibleSection visible : visibilityPipeline.collect(
                 meshes.keySet(), current, cameraPos.x, cameraPos.y, cameraPos.z,
-                frustum, SectionVisibilityPipeline.DEFAULT_MAX_DISTANCE)) visibleLeaves.add(visible.position());
+                frustum, maxLodDistance)) visibleLeaves.add(visible.position());
         int leafDrawCount = 0;
         int parentDrawCount = 0;
         RenderFrameAudit audit = new RenderFrameAudit();
         List<LodNodeTraversal.Selection> activeSelections = LodNodeTraversal.collectByDistance(
-                store.lodTree(), hierarchySelector, cameraPos.x, cameraPos.y, cameraPos.z);
+                store.lodTree(), hierarchySelector, cameraPos.x, cameraPos.y, cameraPos.z, maxLodDistance);
         // Rebuild every ten render frames from the exact node list consumed by this draw pass.
         // The caps bound Android CPU work; truncation is surfaced rather than hidden.
         if (++neighborRefreshTicks >= 10) {
@@ -776,6 +784,24 @@ public final class GlesLodRenderer {
         if (cullEnabled) GL11C.glEnable(GL11C.GL_CULL_FACE); else GL11C.glDisable(GL11C.GL_CULL_FACE);
         if (blendEnabled) GL11C.glEnable(GL11C.GL_BLEND); else GL11C.glDisable(GL11C.GL_BLEND);
     }
+
+    private static double distanceToNodeAabbSquared(LodNode node, double x, double y, double z) {
+        double minX = node.origin().x() * 16.0, minY = node.origin().y() * 16.0,
+                minZ = node.origin().z() * 16.0;
+        double span = node.spanSections() * 16.0;
+        double dx = x < minX ? minX - x : x > minX + span ? x - (minX + span) : 0.0;
+        double dy = y < minY ? minY - y : y > minY + span ? y - (minY + span) : 0.0;
+        double dz = z < minZ ? minZ - z : z > minZ + span ? z - (minZ + span) : 0.0;
+        return dx * dx + dy * dy + dz * dz;
+    }
+
+    public void setMaxLodDistance(double distance) {
+        if (!Double.isFinite(distance) || distance < 256.0 || distance > 8192.0)
+            throw new IllegalArgumentException("LOD distance must be 256..8192 blocks");
+        this.maxLodDistance = distance;
+    }
+
+    public double getMaxLodDistance() { return maxLodDistance; }
 
     /** Enables/disables the in-world orange AABB wireframe for uploaded seam meshes. */
     public void setSeamDebugOverlayEnabled(boolean enabled) { this.seamDebugOverlayEnabled = enabled; }
