@@ -56,6 +56,8 @@ public final class PersistentSectionCacheWorkerSmokeTest {
             }
             if (drained.size() != 201)
                 throw new AssertionError("bounded streaming restore lost entries: " + drained.size());
+            if (!bulkReader.isLoadFinished() || !bulkReader.isLoadComplete() || bulkReader.isLoadFailed())
+                throw new AssertionError("successful cache restore reported an incorrect terminal state");
             bulkReader.close();
             System.out.println("PersistentSectionCacheWorkerSmokeTest: PASS");
         } finally {
