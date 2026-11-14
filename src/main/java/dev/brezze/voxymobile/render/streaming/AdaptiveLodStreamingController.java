@@ -91,6 +91,20 @@ public final class AdaptiveLodStreamingController {
         return Math.min(Math.min(motionBudget, quality.maxUploadsPerFrame()), completedQueueSize);
     }
 
+    /**
+     * Keeps a small independent budget for coarse parent generation. Parent meshes
+     * establish far-field coverage, so they should not be starved by leaf refinement;
+     * fast camera movement and degraded frame-time tiers still reduce CPU pressure.
+     */
+    public int maxParentBuildsPerFrame() {
+        int qualityBudget = switch (quality.qualityTier()) {
+            case 2, 3 -> 1;
+            default -> 2;
+        };
+        int motionBudget = speed >= 12.0 ? 1 : speed >= 4.0 ? 2 : 2;
+        return Math.min(qualityBudget, motionBudget);
+    }
+
     /** Feed the measured frame interval to the adaptive quality policy. */
     public void recordFrameTime(double frameMillis) { quality.recordFrameTime(frameMillis); }
     public int maxNewBuildsPerFrame() { return quality.maxNewBuildsPerFrame(); }

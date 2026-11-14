@@ -324,6 +324,7 @@ public final class GlesLodRenderer {
         hierarchySelector.retainNodes(nodes);
         Set<ParentGeometryKey> live = new HashSet<>();
         int parentBuildRequests = 0;
+        int parentBuildBudget = streaming.maxParentBuildsPerFrame();
         for (LodNode node : nodes) {
             if (node.level() <= 0) continue;
             ParentGeometryKey key = new ParentGeometryKey(node.origin(), node.level());
@@ -335,7 +336,7 @@ public final class GlesLodRenderer {
                     contextFreeCameraX, contextFreeCameraY, contextFreeCameraZ)) continue;
             long revision = node.contentRevision();
             boolean alreadyRequested = parentBuildScheduler.hasRequest(key, revision);
-            if (!alreadyRequested && parentBuildRequests >= streaming.maxNewBuildsPerFrame()) continue;
+            if (!alreadyRequested && parentBuildRequests >= parentBuildBudget) continue;
             ParentGpuMeshData cached = parentGeometryCache.get(key, revision);
             if (cached != null) {
                 parentUploadQueue.offer(cached);
