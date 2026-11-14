@@ -53,10 +53,28 @@ public final class PersistentSectionCache {
         return loadAll(store, maxToLoad, 0.0, 0.0, 0.0);
     }
 
-    /** Restore the nearest cached sections first, using block-space AABB distance. */
+    /** Restore nearest cached sections first, using block-space AABB distance. */
     public synchronized int loadAll(ChunkSnapshotStore store, int maxToLoad,
                                     double centerX, double centerY, double centerZ) throws IOException {
-        if (store == null || maxToLoad < 0 || !Double.isFinite(centerX)
+        if (store == null) throw new IllegalArgumentException("store required");
+        final int[] count = {0};
+        loadEachNearest(maxToLoad, centerX, centerY, centerZ, section -> {
+            store.put(section);
+            count[0]++;
+        });
+        return count[0];
+    }
+
+    @FunctionalInterface
+    public interface SectionConsumer {
+        void accept(VoxelSection section) throws InterruptedException;
+    }
+
+    /** Streams sections in nearest-first order; consumer may apply backpressure. */
+    public synchronized int loadEachNearest(int maxToLoad, double centerX, double centerY,
+                                            double centerZ, SectionConsumer consumer)
+            throws IOException, InterruptedException {
+        if (maxToLoad < 0 || consumer == null || !Double.isFinite(centerX)
                 || !Double.isFinite(centerY) || !Double.isFinite(centerZ))
             throw new IllegalArgumentException();
         if (!Files.isDirectory(directory) || maxToLoad == 0) return 0;
@@ -70,8 +88,17 @@ public final class PersistentSectionCache {
         int loaded = 0;
         for (Path file : files) {
             if (loaded >= maxToLoad) break;
-            try { VoxelSection section = read(file); if (section != null) { store.put(section); loaded++; } }
-            catch (IOException | RuntimeException ignored) { /* corrupt entries are skipped */ }
+            try {
+                VoxelSection section = read(file);
+                if (section != null) {
+                    consumer.accept(section);
+                    loaded++;
+                }
+            } catch (InterruptedException interrupted) {
+                throw interrupted;
+            } catch (IOException | RuntimeException ignored) {
+                // Corrupt entries are skipped without aborting the remaining restore.
+            }
         }
         return loaded;
     }

@@ -5,14 +5,14 @@ import dev.brezze.voxymobile.core.voxel.VoxelSection;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /** Bounded single-worker disk I/O bridge; Minecraft/render threads never touch cache files. */
 public final class PersistentSectionCacheWorker implements AutoCloseable {
     private final PersistentSectionCache cache;
-    private final ConcurrentLinkedQueue<VoxelSection> loaded = new ConcurrentLinkedQueue<>();
+    private static final int MAX_LOADED_HANDOFF = 128;\n    private final ArrayBlockingQueue<VoxelSection> loaded = new ArrayBlockingQueue<>(MAX_LOADED_HANDOFF);
     private final ThreadPoolExecutor io;
     private volatile boolean closed;
     private volatile boolean loadComplete;
@@ -32,9 +32,14 @@ public final class PersistentSectionCacheWorker implements AutoCloseable {
     public void load(double centerX, double centerY, double centerZ) {
         execute(() -> {
             try {
-                ChunkSnapshotStore temporary = new ChunkSnapshotStore(PersistentSectionCache.DEFAULT_MAX_FILES);
-                cache.loadAll(temporary, PersistentSectionCache.DEFAULT_MAX_FILES, centerX, centerY, centerZ);
-                loaded.addAll(temporary.snapshot());
+                cache.loadEachNearest(PersistentSectionCache.DEFAULT_MAX_FILES, centerX, centerY, centerZ,
+                        section -> {
+                            if (closed || Thread.currentThread().isInterrupted())
+                                throw new InterruptedException("cache worker closed");
+                            loaded.put(section);
+                        });
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
             } catch (IOException error) {
                 System.err.println("[VoxyMobile] cache load failed: " + error.getMessage());
             } finally {
@@ -73,6 +78,6 @@ public final class PersistentSectionCacheWorker implements AutoCloseable {
 
     @Override public void close() {
         closed = true;
-        io.shutdown();
+        io.shutdownNow();
     }
 }
