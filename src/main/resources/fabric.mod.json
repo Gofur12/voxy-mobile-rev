@@ -8,6 +8,7 @@
     "Brezze"
   ],
   "environment": "client",
+  "mixins": [ "voxymobile.mixins.json" ],
   "entrypoints": {
     "client": [
       "dev.brezze.voxymobile.fabric.VoxyMobileClient"

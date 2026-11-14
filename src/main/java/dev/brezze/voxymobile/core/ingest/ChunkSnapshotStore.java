@@ -17,6 +17,12 @@ public final class ChunkSnapshotStore {
         lodTree.put(section);
     }
 
+    public synchronized boolean removeSection(SectionPos position) {
+        if (sections.remove(position) == null) return false;
+        lodTree.remove(position);
+        return true;
+    }
+
     public VoxelSection get(SectionPos position) { return sections.get(position); }
     public int size() { return sections.size(); }
     public Collection<VoxelSection> snapshot() { return List.copyOf(sections.values()); }

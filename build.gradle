@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'dev.brezze'
-version = '0.1.50-stage60'
+version = '0.1.51-stage61'
 
 base { archivesName = 'VoxyMobile-Reborn' }
 
@@ -593,3 +593,13 @@ tasks.register('stage60ProjectedSeamZipperSmokeTest', JavaExec) {
 }
 tasks.register('stage60SmokeTest') { dependsOn tasks.named('stage60ProjectedSeamZipperSmokeTest') }
 check.dependsOn tasks.named('stage60SmokeTest')
+
+
+// Stage 61: keep immutable LOD snapshots synchronized with live client block edits.
+tasks.register('stage61LiveSectionSyncSmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.core.ChunkIngestionSmokeTest'
+}
+tasks.register('stage61SmokeTest') { dependsOn tasks.named('stage61LiveSectionSyncSmokeTest') }
+check.dependsOn tasks.named('stage61SmokeTest')

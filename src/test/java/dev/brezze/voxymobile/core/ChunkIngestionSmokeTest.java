@@ -19,6 +19,9 @@ public final class ChunkIngestionSmokeTest {
         ChunkSnapshotStore store = new ChunkSnapshotStore();
         store.put(section);
         if (store.lodTree().findLeaf(section.position()) == null) throw new AssertionError("snapshot not indexed in LOD tree");
+        if (!store.removeSection(section.position()) || store.get(section.position()) != null
+                || !store.lodTree().isEmpty()) throw new AssertionError("empty-section removal did not prune LOD tree");
+        store.put(section);
         if (store.removeChunk(-2, 9) != 1 || !store.lodTree().isEmpty()) throw new AssertionError("chunk unload did not prune LOD tree");
         store.put(section);
         store.clear();
