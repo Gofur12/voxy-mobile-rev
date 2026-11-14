@@ -2,6 +2,7 @@ package dev.brezze.voxymobile.fabric;
 
 import dev.brezze.voxymobile.core.ingest.ChunkSnapshotStore;
 import dev.brezze.voxymobile.core.ingest.SectionSnapshotBuilder;
+import dev.brezze.voxymobile.core.ingest.PersistentSectionCacheWorker;
 import dev.brezze.voxymobile.core.voxel.SectionPos;
 import dev.brezze.voxymobile.render.GlesLodRenderer;
 import dev.brezze.voxymobile.diagnostics.RuntimeDiagnostics;
@@ -22,6 +23,10 @@ import net.minecraft.world.chunk.ChunkStatus;
 import net.minecraft.world.chunk.WorldChunk;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import net.fabricmc.loader.api.FabricLoader;
+import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 
 /** Client chunk ingestion and Stage 05 GLES terrain LOD rendering entrypoint. */
 public final class VoxyMobileClient implements ClientModInitializer {
@@ -30,6 +35,8 @@ public final class VoxyMobileClient implements ClientModInitializer {
     private static final Map<SectionPos, PendingSection> PENDING = new LinkedHashMap<>();
     private static final GlesLodRenderer RENDERER = new GlesLodRenderer(STORE);
     private static KeyBinding TOGGLE_SEAM_DEBUG;
+    private static PersistentSectionCacheWorker CACHE_WORKER;
+    private static ClientWorld CACHE_WORLD;
 
     @Override public void onInitializeClient() {
         System.out.println("[VoxyMobile] client initializer active; waiting for chunk and world-render events");
@@ -48,6 +55,31 @@ public final class VoxyMobileClient implements ClientModInitializer {
             System.out.println("[VoxyMobile] retained " + retained + " section snapshots after chunk unload");
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (client.world != CACHE_WORLD) {
+                if (CACHE_WORKER != null) CACHE_WORKER.close();
+                CACHE_WORKER = null;
+                CACHE_WORLD = client.world;
+                STORE.clear();
+                if (client.world != null) {
+                    String identity;
+                    if (client.getCurrentServerEntry() != null) identity = "server:" + client.getCurrentServerEntry().address;
+                    else if (client.getServer() != null) identity = "singleplayer:" + client.getServer().getSaveProperties().getLevelName();
+                    else identity = "unknown-local-world";
+                    String worldKey = UUID.nameUUIDFromBytes(identity.getBytes(StandardCharsets.UTF_8)).toString();
+                    String dimensionKey = client.world.getRegistryKey().getValue().toString();
+                    Path cacheRoot = FabricLoader.getInstance().getConfigDir().resolve("voxymobile").resolve("terrain-cache");
+                    CACHE_WORKER = new PersistentSectionCacheWorker(cacheRoot, worldKey, dimensionKey);
+                    CACHE_WORKER.load();
+                    System.out.println("[VoxyMobile] persistent terrain cache opened for " + dimensionKey);
+                }
+            }
+            if (CACHE_WORKER != null) {
+                for (int i = 0; i < 8; i++) {
+                    dev.brezze.voxymobile.core.voxel.VoxelSection restored = CACHE_WORKER.pollLoaded();
+                    if (restored == null) break;
+                    STORE.put(restored);
+                }
+            }
             while (TOGGLE_SEAM_DEBUG.wasPressed()) {
                 RENDERER.setSeamDebugOverlayEnabled(!RENDERER.isSeamDebugOverlayEnabled());
                 System.out.println("[VoxyMobile] seam debug overlay=" + RENDERER.isSeamDebugOverlayEnabled());
