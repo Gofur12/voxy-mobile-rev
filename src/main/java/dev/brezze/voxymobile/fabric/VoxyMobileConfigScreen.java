@@ -47,9 +47,9 @@ public final class VoxyMobileConfigScreen extends Screen {
         } else {
             addToggle(left, 65, panelWidth, "voxymobile.config.renderer",
                     VoxyMobileClient.isRendererSettingEnabled(), VoxyMobileClient::setRendererEnabled);
-            distanceSlider = new LodSlider(left + 8, 164, panelWidth - 16, 20, LodDistanceConfig.distance());
+            distanceSlider = new LodSlider(left + 8, 181, panelWidth - 16, 20, LodDistanceConfig.distance());
             addDrawableChild(distanceSlider);
-            addToggle(left, 211, panelWidth, "voxymobile.config.seam_debug",
+            addToggle(left, 218, panelWidth, "voxymobile.config.seam_debug",
                     VoxyMobileClient.isSeamDebugOverlayEnabled(), VoxyMobileClient::setSeamDebugOverlayEnabled);
         }
 
@@ -82,11 +82,11 @@ public final class VoxyMobileConfigScreen extends Screen {
         if (page == Page.GENERAL) {
             drawGroup(context, left, 144, panelWidth, 57, "voxymobile.config.group.terrain");
         } else {
-            drawGroup(context, left, 144, panelWidth, 99, "voxymobile.config.group.distance");
+            drawGroup(context, left, 144, panelWidth, 117, "voxymobile.config.group.distance");
             context.drawCenteredTextWithShadow(textRenderer,
                     Text.translatable("voxymobile.config.lod_distance", distanceSlider == null
                             ? LodDistanceConfig.distance() : distanceSlider.distance()),
-                    center, 149, 0xFFFFFF);
+                    center, 166, 0xFFFFFF);
         }
         super.render(context, mouseX, mouseY, delta);
     }
