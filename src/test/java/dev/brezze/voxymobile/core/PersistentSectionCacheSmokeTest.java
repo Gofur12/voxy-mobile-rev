@@ -14,7 +14,7 @@ public final class PersistentSectionCacheSmokeTest {
    ChunkSnapshotStore restored=new ChunkSnapshotStore(16);
    if(cache.loadAll(restored,8)!=1) throw new AssertionError("cache did not reload");
    VoxelSection copy=restored.get(src.position());
-   if(copy==null || copy.blockId(0,0,0)!=42 || copy.blockId(1,1,0)!=7) throw new AssertionError("palette data mismatch");
+   if(copy==null || copy.blockId(0,0,0)!=42 || copy.blockId(1,0,1)!=7) throw new AssertionError("palette data mismatch");
    if(restored.lodTree().findLeaf(src.position())==null) throw new AssertionError("not inserted into LOD tree");
    if(new PersistentSectionCache(root,"world-B","minecraft_overworld").loadAll(new ChunkSnapshotStore(),8)!=0)
     throw new AssertionError("world namespace leaked");
