@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'dev.brezze'
-version = '0.1.61-stage71'
+version = '0.1.62-stage72'
 
 base { archivesName = 'VoxyMobile-Reborn' }
 
@@ -684,3 +684,11 @@ tasks.register('stage69LodDistancePolicySmokeTest', JavaExec) {
 }
 tasks.register('stage69SmokeTest') { dependsOn tasks.named('stage69LodDistancePolicySmokeTest') }
 check.dependsOn tasks.named('stage69SmokeTest')
+
+tasks.register('stage72SettingsPolicySmokeTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.brezze.voxymobile.core.config.VoxyMobileSettingsPolicySmokeTest'
+}
+tasks.register('stage72SmokeTest') { dependsOn tasks.named('stage72SettingsPolicySmokeTest') }
+check.dependsOn tasks.named('stage72SmokeTest')

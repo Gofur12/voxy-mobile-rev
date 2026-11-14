@@ -5,7 +5,12 @@
   "voxymobile.config.general": "General",
   "voxymobile.config.rendering": "Rendering",
   "voxymobile.config.lod_distance": "LOD Render Distance: %s blocks",
-  "voxymobile.config.terrain_ingestion": "Terrain Capture",
-  "voxymobile.config.renderer": "Enable Renderer",
-  "voxymobile.config.seam_debug": "Seam Debug Overlay"
+  "voxymobile.config.terrain_ingestion": "Ingest Terrain",
+  "voxymobile.config.renderer": "Enable Rendering",
+  "voxymobile.config.seam_debug": "Seam Debug Overlay",
+  "voxymobile.config.enabled": "Enabled",
+  "voxymobile.config.group.general": "Voxy",
+  "voxymobile.config.group.renderer": "Rendering",
+  "voxymobile.config.group.terrain": "Terrain Ingestion",
+  "voxymobile.config.group.distance": "LOD Quality and Distance"
 }

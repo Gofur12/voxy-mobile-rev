@@ -39,15 +39,21 @@ public final class VoxyMobileClient implements ClientModInitializer {
     private static PersistentSectionCacheWorker CACHE_WORKER;
     private static ClientWorld CACHE_WORLD;
     private static final LiveSectionRestoreGate RESTORE_GATE = new LiveSectionRestoreGate();
+    private static volatile boolean masterEnabled = true;
+    private static volatile boolean terrainIngestionSetting = true;
     private static volatile boolean terrainIngestionEnabled = true;
+    private static volatile boolean rendererSetting = true;
 
     @Override public void onInitializeClient() {
         System.out.println("[VoxyMobile] client initializer active; waiting for chunk and world-render events");
         int lodDistance = LodDistanceConfig.load();
         RENDERER.setMaxLodDistance(lodDistance);
-        RENDERER.setEnabled(LodDistanceConfig.rendererEnabled());
+        masterEnabled = LodDistanceConfig.enabled();
+        rendererSetting = LodDistanceConfig.rendererEnabled();
+        terrainIngestionSetting = LodDistanceConfig.terrainIngestionEnabled();
+        RENDERER.setEnabled(masterEnabled && rendererSetting);
         RENDERER.setSeamDebugOverlayEnabled(LodDistanceConfig.seamDebugOverlayEnabled());
-        terrainIngestionEnabled = LodDistanceConfig.terrainIngestionEnabled();
+        terrainIngestionEnabled = masterEnabled && terrainIngestionSetting;
         System.out.println("[VoxyMobile] independent LOD distance=" + lodDistance + " blocks");
         WorldRenderEvents.AFTER_ENTITIES.register(RENDERER::render);
         TOGGLE_SEAM_DEBUG = KeyBindingHelper.registerKeyBinding(new KeyBinding(
@@ -193,15 +199,25 @@ public final class VoxyMobileClient implements ClientModInitializer {
         LodDistanceConfig.setDistance(normalized);
         RENDERER.setMaxLodDistance(normalized);
     }
-    public static void setRendererEnabled(boolean enabled) {
-        LodDistanceConfig.setRendererEnabled(enabled);
-        RENDERER.setEnabled(enabled);
+    public static void setEnabled(boolean enabled) {
+        masterEnabled = enabled;
+        LodDistanceConfig.setEnabled(enabled);
+        RENDERER.setEnabled(masterEnabled && rendererSetting);
+        terrainIngestionEnabled = masterEnabled && terrainIngestionSetting;
     }
+    public static boolean isEnabled() { return masterEnabled; }
+    public static void setRendererEnabled(boolean enabled) {
+        rendererSetting = enabled;
+        LodDistanceConfig.setRendererEnabled(enabled);
+        RENDERER.setEnabled(masterEnabled && rendererSetting);
+    }
+    public static boolean isRendererSettingEnabled() { return rendererSetting; }
     public static void setTerrainIngestionEnabled(boolean enabled) {
-        terrainIngestionEnabled = enabled;
+        terrainIngestionSetting = enabled;
+        terrainIngestionEnabled = masterEnabled && terrainIngestionSetting;
         LodDistanceConfig.setTerrainIngestionEnabled(enabled);
     }
-    public static boolean isTerrainIngestionEnabled() { return terrainIngestionEnabled; }
+    public static boolean isTerrainIngestionEnabled() { return terrainIngestionSetting; }
     public static void setSeamDebugOverlayEnabled(boolean enabled) {
         LodDistanceConfig.setSeamDebugOverlayEnabled(enabled);
         RENDERER.setSeamDebugOverlayEnabled(enabled);

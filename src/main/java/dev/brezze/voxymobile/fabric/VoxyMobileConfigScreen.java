@@ -6,7 +6,10 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.SliderWidget;
 import net.minecraft.text.Text;
 
-/** Voxy-style two-page settings screen exposed from Mod Menu. */
+/**
+ * Voxy PC-inspired configuration layout: General and Rendering pages with grouped options.
+ * Only controls backed by a working mobile runtime setting are exposed.
+ */
 public final class VoxyMobileConfigScreen extends Screen {
     private final Screen parent;
     private Page page = Page.GENERAL;
@@ -22,7 +25,11 @@ public final class VoxyMobileConfigScreen extends Screen {
     @Override
     protected void init() {
         clearChildren();
+        distanceSlider = null;
         int center = width / 2;
+        int panelWidth = Math.min(440, width - 24);
+        int left = center - panelWidth / 2;
+
         addDrawableChild(ButtonWidget.builder(Text.translatable("voxymobile.config.general"), b -> {
             page = Page.GENERAL;
             init();
@@ -33,28 +40,29 @@ public final class VoxyMobileConfigScreen extends Screen {
         }).dimensions(center + 4, 30, 150, 20).build());
 
         if (page == Page.GENERAL) {
-            distanceSlider = new LodSlider(center - 150, 70, 300, 20, LodDistanceConfig.distance());
-            addDrawableChild(distanceSlider);
-            addDrawableChild(ButtonWidget.builder(toggleText("voxymobile.config.terrain_ingestion",
-                    VoxyMobileClient.isTerrainIngestionEnabled()), b -> {
-                VoxyMobileClient.setTerrainIngestionEnabled(!VoxyMobileClient.isTerrainIngestionEnabled());
-                init();
-            }).dimensions(center - 150, 104, 300, 20).build());
+            addToggle(left, 65, panelWidth, "voxymobile.config.enabled",
+                    VoxyMobileClient.isEnabled(), VoxyMobileClient::setEnabled);
+            addToggle(left, 151, panelWidth, "voxymobile.config.terrain_ingestion",
+                    VoxyMobileClient.isTerrainIngestionEnabled(), VoxyMobileClient::setTerrainIngestionEnabled);
         } else {
-            addDrawableChild(ButtonWidget.builder(toggleText("voxymobile.config.renderer",
-                    VoxyMobileClient.isRendererEnabled()), b -> {
-                VoxyMobileClient.setRendererEnabled(!VoxyMobileClient.isRendererEnabled());
-                init();
-            }).dimensions(center - 150, 70, 300, 20).build());
-            addDrawableChild(ButtonWidget.builder(toggleText("voxymobile.config.seam_debug",
-                    VoxyMobileClient.isSeamDebugOverlayEnabled()), b -> {
-                VoxyMobileClient.setSeamDebugOverlayEnabled(!VoxyMobileClient.isSeamDebugOverlayEnabled());
-                init();
-            }).dimensions(center - 150, 96, 300, 20).build());
+            addToggle(left, 65, panelWidth, "voxymobile.config.renderer",
+                    VoxyMobileClient.isRendererSettingEnabled(), VoxyMobileClient::setRendererEnabled);
+            distanceSlider = new LodSlider(left + 8, 164, panelWidth - 16, 20, LodDistanceConfig.distance());
+            addDrawableChild(distanceSlider);
+            addToggle(left, 211, panelWidth, "voxymobile.config.seam_debug",
+                    VoxyMobileClient.isSeamDebugOverlayEnabled(), VoxyMobileClient::setSeamDebugOverlayEnabled);
         }
 
         addDrawableChild(ButtonWidget.builder(Text.translatable("gui.done"), b -> close())
                 .dimensions(center - 100, height - 30, 200, 20).build());
+    }
+
+    private void addToggle(int x, int y, int width, String key, boolean value,
+                           java.util.function.Consumer<Boolean> setter) {
+        addDrawableChild(ButtonWidget.builder(toggleText(key, value), b -> {
+            setter.accept(!value);
+            init();
+        }).dimensions(x + 8, y + 22, width - 16, 20).build());
     }
 
     private static Text toggleText(String key, boolean value) {
@@ -65,13 +73,28 @@ public final class VoxyMobileConfigScreen extends Screen {
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         renderBackground(context);
-        context.drawCenteredTextWithShadow(textRenderer, title, width / 2, 12, 0xFFFFFF);
-        if (page == Page.GENERAL && distanceSlider != null) {
+        int center = width / 2;
+        int panelWidth = Math.min(440, width - 24);
+        int left = center - panelWidth / 2;
+        context.drawCenteredTextWithShadow(textRenderer, title, center, 12, 0xFFFFFF);
+        drawGroup(context, left, 58, panelWidth, 57,
+                page == Page.GENERAL ? "voxymobile.config.group.general" : "voxymobile.config.group.renderer");
+        if (page == Page.GENERAL) {
+            drawGroup(context, left, 144, panelWidth, 57, "voxymobile.config.group.terrain");
+        } else {
+            drawGroup(context, left, 144, panelWidth, 99, "voxymobile.config.group.distance");
             context.drawCenteredTextWithShadow(textRenderer,
-                    Text.translatable("voxymobile.config.lod_distance", distanceSlider.distance()),
-                    width / 2, 57, 0xFFFFFF);
+                    Text.translatable("voxymobile.config.lod_distance", distanceSlider == null
+                            ? LodDistanceConfig.distance() : distanceSlider.distance()),
+                    center, 149, 0xFFFFFF);
         }
         super.render(context, mouseX, mouseY, delta);
+    }
+
+    private void drawGroup(DrawContext context, int x, int y, int width, int height, String titleKey) {
+        context.fill(x, y, x + width, y + height, 0x88000000);
+        context.drawBorder(x, y, width, height, 0xFF777777);
+        context.drawTextWithShadow(textRenderer, Text.translatable(titleKey), x + 9, y + 6, 0xFFFFFF);
     }
 
     @Override

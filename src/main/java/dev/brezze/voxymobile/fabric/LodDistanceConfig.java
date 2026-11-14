@@ -15,10 +15,12 @@ public final class LodDistanceConfig {
     public static final int MIN_DISTANCE = LodDistancePolicy.MIN_DISTANCE;
     public static final int MAX_DISTANCE = LodDistancePolicy.MAX_DISTANCE;
     private static final String KEY = "lodDistanceBlocks";
+    private static final String ENABLED_KEY = "enabled";
     private static final String RENDERER_KEY = "rendererEnabled";
     private static final String INGEST_KEY = "terrainIngestionEnabled";
     private static final String SEAM_DEBUG_KEY = "seamDebugOverlayEnabled";
     private static int currentDistance = DEFAULT_DISTANCE;
+    private static boolean enabled = true;
     private static boolean rendererEnabled = true;
     private static boolean terrainIngestionEnabled = true;
     private static boolean seamDebugOverlayEnabled = false;
@@ -38,10 +40,12 @@ public final class LodDistanceConfig {
         String configured = properties.getProperty(KEY, Integer.toString(DEFAULT_DISTANCE));
         int distance = LodDistancePolicy.parse(configured);
         currentDistance = distance;
+        enabled = Boolean.parseBoolean(properties.getProperty(ENABLED_KEY, "true"));
         rendererEnabled = Boolean.parseBoolean(properties.getProperty(RENDERER_KEY, "true"));
         terrainIngestionEnabled = Boolean.parseBoolean(properties.getProperty(INGEST_KEY, "true"));
         seamDebugOverlayEnabled = Boolean.parseBoolean(properties.getProperty(SEAM_DEBUG_KEY, "false"));
         properties.setProperty(KEY, Integer.toString(distance));
+        properties.setProperty(ENABLED_KEY, Boolean.toString(enabled));
         try {
             Files.createDirectories(file.getParent());
             try (Writer writer = Files.newBufferedWriter(file)) {
@@ -54,6 +58,8 @@ public final class LodDistanceConfig {
     }
 
     public static int distance() { return currentDistance; }
+    public static boolean enabled() { return enabled; }
+    public static void setEnabled(boolean value) { enabled = value; save(); }
     public static boolean rendererEnabled() { return rendererEnabled; }
     public static boolean terrainIngestionEnabled() { return terrainIngestionEnabled; }
     public static boolean seamDebugOverlayEnabled() { return seamDebugOverlayEnabled; }
@@ -71,6 +77,7 @@ public final class LodDistanceConfig {
             catch (IOException error) { System.err.println("[VoxyMobile] Could not reload config before save: " + error.getMessage()); }
         }
         properties.setProperty(KEY, Integer.toString(currentDistance));
+        properties.setProperty(ENABLED_KEY, Boolean.toString(enabled));
         properties.setProperty(RENDERER_KEY, Boolean.toString(rendererEnabled));
         properties.setProperty(INGEST_KEY, Boolean.toString(terrainIngestionEnabled));
         properties.setProperty(SEAM_DEBUG_KEY, Boolean.toString(seamDebugOverlayEnabled));
