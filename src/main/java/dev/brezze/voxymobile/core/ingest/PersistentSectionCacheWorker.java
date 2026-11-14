@@ -12,7 +12,8 @@ import java.util.concurrent.TimeUnit;
 /** Bounded single-worker disk I/O bridge; Minecraft/render threads never touch cache files. */
 public final class PersistentSectionCacheWorker implements AutoCloseable {
     private final PersistentSectionCache cache;
-    private static final int MAX_LOADED_HANDOFF = 128;\n    private final ArrayBlockingQueue<VoxelSection> loaded = new ArrayBlockingQueue<>(MAX_LOADED_HANDOFF);
+    private static final int MAX_LOADED_HANDOFF = 128;
+    private final ArrayBlockingQueue<VoxelSection> loaded = new ArrayBlockingQueue<>(MAX_LOADED_HANDOFF);
     private final ThreadPoolExecutor io;
     private volatile boolean closed;
     private volatile boolean loadComplete;
